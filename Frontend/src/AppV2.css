@@ -941,6 +941,10 @@ h2 em {
     margin-top: auto;
     padding-top: 20px;
     color: var(--lime);
+    border: 0;
+    padding-left: 0;
+    padding-right: 0;
+    background: transparent;
     text-decoration: none;
     font: 10px 'DM Mono', monospace;
     text-transform: uppercase;
@@ -962,6 +966,438 @@ h2 em {
 
 .contact-email {
     display: none;
+}
+
+.registration-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(10, 7, 18, .78);
+    backdrop-filter: blur(12px);
+}
+
+.registration-modal {
+    position: relative;
+    width: min(100%, 620px);
+    max-height: min(720px, 92vh);
+    overflow-y: auto;
+    padding: clamp(26px, 5vw, 52px);
+    border: 1px solid var(--line);
+    background: var(--paper);
+    box-shadow: 14px 14px 0 rgba(213, 255, 75, .12);
+}
+
+.registration-modal h2 {
+    margin: 12px 0 10px;
+    font-size: clamp(38px, 7vw, 68px);
+    line-height: .9;
+    letter-spacing: -.07em;
+}
+
+.registration-modal h2 em {
+    color: var(--lime);
+    font-style: normal;
+}
+
+.registration-intro {
+    max-width: 390px;
+    margin: 0 0 28px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.registration-close {
+    position: absolute;
+    top: 18px;
+    right: 20px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: 28px 'DM Mono', monospace;
+}
+
+.registration-modal form,
+.registration-fields {
+    display: grid;
+    gap: 14px;
+}
+
+.registration-fields {
+    grid-template-columns: 1fr 1fr;
+}
+
+.registration-modal label {
+    display: grid;
+    gap: 7px;
+    color: var(--muted);
+    font: 10px 'DM Mono', monospace;
+    text-transform: uppercase;
+}
+
+.registration-modal input,
+.registration-modal select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    padding: 13px 14px;
+    background: rgba(255, 255, 255, .04);
+    color: var(--ink);
+    font: 14px 'Space Grotesk', sans-serif;
+}
+
+.registration-modal select option {
+    background: var(--paper);
+}
+
+.registration-modal input:focus,
+.registration-modal select:focus {
+    outline: 2px solid var(--lime);
+    outline-offset: 2px;
+}
+
+.registration-submit {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    border: 0;
+    padding: 15px 16px;
+    background: var(--lime);
+    color: var(--paper);
+    font: 600 11px 'DM Mono', monospace;
+    text-transform: uppercase;
+}
+
+.registration-submit:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.registration-status {
+    margin: 0;
+    padding: 11px 13px;
+    border-left: 3px solid var(--pink);
+    color: var(--ink);
+    font-size: 13px;
+}
+
+.registration-status.success {
+    border-color: var(--lime);
+}
+
+.admin-page {
+    min-height: 100vh;
+    padding: clamp(28px, 5vw, 72px);
+    background: var(--paper);
+    color: var(--ink);
+}
+
+.admin-login {
+    width: min(100%, 520px);
+    margin: 8vh auto;
+    padding: clamp(28px, 6vw, 60px);
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .03);
+}
+
+.admin-login h1,
+.admin-header h1,
+.admin-panel h2 {
+    margin: 10px 0 16px;
+    letter-spacing: -.07em;
+}
+
+.admin-login h1 {
+    font-size: clamp(42px, 8vw, 76px);
+    line-height: .9;
+}
+
+.admin-login h1 em,
+.admin-header h1 em {
+    color: var(--lime);
+    font-style: normal;
+}
+
+.admin-login>p:not(.eyebrow) {
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.admin-login form,
+.admin-panel form {
+    display: grid;
+    gap: 14px;
+    margin-top: 30px;
+}
+
+.admin-login label,
+.admin-panel label {
+    display: grid;
+    gap: 7px;
+    color: var(--muted);
+    font: 10px 'DM Mono', monospace;
+    text-transform: uppercase;
+}
+
+.admin-login input,
+.admin-panel input,
+.admin-panel select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    padding: 13px 14px;
+    background: rgba(255, 255, 255, .04);
+    color: var(--ink);
+    font: 14px 'Space Grotesk', sans-serif;
+}
+
+.admin-panel select option {
+    background: var(--paper);
+}
+
+.admin-header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 24px;
+    max-width: 1500px;
+    margin: 0 auto 48px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 28px;
+}
+
+.admin-header h1 {
+    font-size: clamp(42px, 7vw, 82px);
+    line-height: .9;
+}
+
+.admin-actions,
+.admin-list-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.admin-actions button,
+.admin-list-heading button,
+.registration-table button {
+    border: 1px solid var(--line);
+    padding: 11px 13px;
+    background: transparent;
+    color: var(--ink);
+    font: 10px 'DM Mono', monospace;
+    text-transform: uppercase;
+}
+
+.admin-actions button:first-child,
+.admin-list-heading button:hover,
+.registration-table button:hover {
+    border-color: var(--lime);
+    color: var(--lime);
+}
+
+.admin-layout {
+    display: grid;
+    grid-template-columns: minmax(300px, .7fr) minmax(0, 1.3fr);
+    gap: 24px;
+    max-width: 1500px;
+    margin: 0 auto;
+}
+
+.admin-panel {
+    padding: clamp(22px, 3vw, 36px);
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .025);
+}
+
+.admin-panel h2 {
+    font-size: clamp(30px, 4vw, 48px);
+}
+
+.admin-list {
+    min-width: 0;
+}
+
+.admin-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bulk-pass-button {
+    border-color: var(--lime) !important;
+    color: var(--lime) !important;
+}
+
+.admin-search {
+    display: grid;
+    gap: 7px;
+    margin-top: 24px;
+    color: var(--muted);
+    font: 10px 'DM Mono', monospace;
+    text-transform: uppercase;
+}
+
+.admin-search input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    padding: 13px 14px;
+    background: rgba(255, 255, 255, .04);
+    color: var(--ink);
+    font: 14px 'Space Grotesk', sans-serif;
+}
+
+.admin-search input:focus {
+    outline: 2px solid var(--lime);
+    outline-offset: 2px;
+}
+
+.registration-table {
+    margin-top: 28px;
+    overflow-x: auto;
+    border-top: 1px solid var(--line);
+}
+
+.registration-table-row {
+    min-width: 850px;
+    display: grid;
+    grid-template-columns: 48px 90px 1.2fr 1fr 110px 90px;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+}
+
+.registration-table-head {
+    color: var(--muted);
+    font: 10px 'DM Mono', monospace;
+    text-transform: uppercase;
+}
+
+.registration-table-row strong {
+    color: var(--lime);
+    font: 500 14px 'DM Mono', monospace;
+}
+
+.student-checkbox {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--lime);
+}
+
+.attendance-status {
+    color: var(--muted);
+    font: 10px 'DM Mono', monospace;
+    text-transform: uppercase;
+}
+
+.attendance-status.present {
+    color: #7dff9b;
+    font-weight: 500;
+}
+
+.registration-table-row b,
+.registration-table-row small {
+    display: block;
+}
+
+.pass-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.registration-table-row small {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.admin-status {
+    margin: 0;
+    padding: 11px 13px;
+    border-left: 3px solid var(--pink);
+    font-size: 13px;
+}
+
+.admin-status.success {
+    border-color: var(--lime);
+}
+
+.student-pass {
+    display: none;
+}
+
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 8mm;
+    }
+
+    body {
+        background: white;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .admin-page>*:not(.student-pass) {
+        display: none !important;
+    }
+
+    .student-pass {
+        display: block;
+        width: 86mm;
+        margin: 20mm auto;
+        overflow: hidden;
+        padding: 12mm 9mm;
+        border: 1px solid #463c58;
+        color: #f6f2e9;
+        text-align: center;
+        font-family: 'Space Grotesk', sans-serif;
+        background: #100c1d;
+        background-image: linear-gradient(rgba(246, 242, 233, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(246, 242, 233, .08) 1px, transparent 1px);
+        background-size: 22px 22px;
+        box-shadow: 8px 8px 0 rgba(213, 255, 75, .16);
+    }
+
+    .student-pass h2 {
+        margin: 8mm 0 3mm;
+        color: #d5ff4b;
+        font: 500 30pt 'DM Mono', monospace;
+    }
+
+    .pass-kicker,
+    .student-pass small {
+        font: 8pt 'DM Mono', monospace;
+        text-transform: uppercase;
+    }
+
+    .pass-name {
+        font-size: 16pt;
+        font-weight: 700;
+    }
+
+    .student-pass img {
+        display: block;
+        width: 100%;
+        margin: 8mm 0 5mm;
+        padding: 2mm;
+        background: #f6f2e9;
+    }
+
+    .student-pass p:not(.pass-name) {
+        color: #a7a0b7;
+    }
+
+    .pass-name {
+        font-size: 16pt;
+        font-weight: 700;
+    }
 }
 
 .schedule-section {
@@ -1611,6 +2047,24 @@ footer h2 {
     .footer-college,
     .copyright {
         grid-column: auto;
+    }
+
+    .registration-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-page {
+        padding: 20px;
+    }
+
+    .admin-header,
+    .admin-actions {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .admin-layout {
+        grid-template-columns: 1fr;
     }
 }
 

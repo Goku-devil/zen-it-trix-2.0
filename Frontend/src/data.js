@@ -22,4 +22,3 @@ export const schedule = [
     ['04:30 PM', 'Prize ceremony', 'Auditorium'],
 ]
 
-export const register_link = 'https://forms.gle/your-registration-form-link';

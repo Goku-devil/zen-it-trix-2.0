@@ -1,6 +1,4 @@
-import { register_link } from '../data'
-
-export default function EventCard({ event }) {
+export default function EventCard({ event, onRegister }) {
     return (
         <article className={`event-card ${event.color}`}>
             <div className="event-topline">
@@ -29,9 +27,9 @@ export default function EventCard({ event }) {
                     </ul>
                 </div>
             </div>
-            <a className="event-register-button" href={register_link} target="_blank" rel="noreferrer">
+            <button className="event-register-button" type="button" onClick={() => onRegister(event.name)}>
                 Register now <span aria-hidden="true">↗</span>
-            </a>
+            </button>
             <a className="contact-link" href={`mailto:${event.contact}`}>
                 Contact coordinator <span aria-hidden="true">↗</span>
             </a>

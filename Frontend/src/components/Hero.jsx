@@ -1,8 +1,7 @@
 import { useRef } from 'react'
-import { register_link } from '../data'
 import logo from '../assets/logo.png'
 
-export default function Hero() {
+export default function Hero({ onRegister }) {
     const heroRef = useRef(null)
 
     const handlePointerMove = (event) => {
@@ -31,9 +30,9 @@ export default function Hero() {
                     <a className="primary-button" href="#events">
                         See all events <span>↓</span>
                     </a>
-                    <a className="register-button" href={register_link} target="_blank" rel="noreferrer">
+                    <button className="register-button" type="button" onClick={onRegister}>
                         Register now <span>↗</span>
-                    </a>
+                    </button>
                 </div>
             </div>
             <div className="hero-art" aria-label="Zen-it-trix 2.0 event details">

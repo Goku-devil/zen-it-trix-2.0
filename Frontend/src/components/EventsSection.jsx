@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import EventCard from './EventCard'
 
-function Track({ label, description, events, className }) {
+function Track({ label, description, events, className, onRegister }) {
     const gridClassName = events.length > 4 ? 'event-grid two-column' : 'event-grid'
 
     return (
@@ -13,14 +13,14 @@ function Track({ label, description, events, className }) {
             <p className="track-description">{description}</p>
             <div className={gridClassName}>
                 {events.map((event, index) => (
-                    <EventCard key={`${event.name}-${event.number}-${index}`} event={event} />
+                    <EventCard key={`${event.name}-${event.number}-${index}`} event={event} onRegister={onRegister} />
                 ))}
             </div>
         </div>
     )
 }
 
-export default function EventsSection({ technicalEvents, nonTechnicalEvents }) {
+export default function EventsSection({ technicalEvents, nonTechnicalEvents, onRegister }) {
     const [activeTrack, setActiveTrack] = useState('technical')
     const isTechnical = activeTrack === 'technical'
 
@@ -59,6 +59,7 @@ export default function EventsSection({ technicalEvents, nonTechnicalEvents }) {
                     label="01 / Technical"
                     description="For the curious, the precise, and the ones who see a problem and think: I can fix that."
                     events={technicalEvents}
+                    onRegister={onRegister}
                 />
             ) : (
                 <Track
@@ -67,6 +68,7 @@ export default function EventsSection({ technicalEvents, nonTechnicalEvents }) {
                     label="02 / Non-technical"
                     description="For the loud laughs, friendly rivalries, and people who bring the fun wherever they go."
                     events={nonTechnicalEvents}
+                    onRegister={onRegister}
                 />
             )}
         </section>
