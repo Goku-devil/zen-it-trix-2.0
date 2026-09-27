@@ -4,64 +4,72 @@
       "name": "Salem",
       "colleges": [
         "Annapoorana Engineering College",
-        "AVS Engineering College",
-        "Bannari Amman Institute of Technology",
+        "A V S Engineering College",
+        "AVS College of Technology",
+        "Bharathiyar Institute of Engineering for Women",
         "Dhirajlal Gandhi College of Technology",
+        "Ganesh College of Engineering",
         "Government College of Engineering, Salem",
-        "J.K.K. Nattraja College of Engineering and Technology",
-        "K.S.R. College of Engineering",
-        "Maharaja Institute of Technology",
-        "Paavai Engineering College",
+        "Indian Institute of Handloom Technology",
+        "Knowledge Institute of Technology",
+        "Mahendra College of Engineering",
+        "R P Sarathy Institute of Technology",
+        "Salem College of Engineering and Technology",
+        "Shree Sathyam College of Engineering and Technology",
         "Sona College of Technology",
-        "Sri Ganesh School of Engineering and Technology",
-        "Vellalar College for Women"
+        "Sri Shanmugha College of Engineering and Technology",
+        "Tagore Institute of Engineering and Technology",
+        "The Kavery Engineering College",
+        "V S A Group of Institutions",
+        "Vasavi Vidya Trust Group of Institutions",
+        "Vinayaka Mission's Kirupananda Variyar Engineering College"
       ]
     },
     {
       "name": "Erode",
       "colleges": [
+        "Aishwarya College of Engineering and Technology",
+        "Al-Ameen Engineering College",
         "Bannari Amman Institute of Technology",
-        "Erode Builder Educational Trust's Group of Institutions",
+        "Erode Sengunthar Engineering College",
+        "Government College of Engineering, Erode",
+        "Hindusthan College of Engineering",
+        "J K K Munirajah College of Technology",
         "Kongu Engineering College",
+        "M.P. Nachimuthu M. Jaganathan Engineering College",
+        "Nandha College of Technology",
         "Nandha Engineering College",
-        "PSG College of Technology",
-        "Sri Krishna College of Engineering and Technology",
+        "Shree Venkateshwara Hi-Tech Engineering College",
         "Surya Engineering College",
-        "Velalar College of Engineering and Technology",
-        "Vellalar College of Engineering and Technology"
+        "Velalar College of Engineering and Technology"
       ]
     },
     {
       "name": "Namakkal",
       "colleges": [
+        "Annai Mathammal Sheela Engineering College",
+        "CMS College of Engineering",
         "Excel Engineering College",
         "Gnanamani College of Technology",
+        "J.K.K. Nataraja College of Engineering and Technology",
+        "K.S. Rangasamy College of Technology",
         "K.S.R. College of Engineering",
         "K.S.R. Institute for Engineering and Technology",
+        "Mahendra Engineering College",
+        "Mahendra Engineering College for Women",
+        "Mahendra Institute of Technology",
+        "Muthayammal College of Engineering",
         "Muthayammal Engineering College",
+        "P.G.P. College of Engineering and Technology",
         "Paavai College of Engineering",
         "Paavai Engineering College",
-        "PGP College of Engineering and Technology",
+        "SRG Engineering College",
+        "S.S.M. College of Engineering",
         "Selvam College of Technology",
-        "Sona College of Technology",
-        "Sri Ramakrishna Engineering College",
-        "Vivekanandha College of Engineering for Women"
-      ]
-    },
-    {
-      "name": "Coimbatore",
-      "colleges": [
-        "Coimbatore Institute of Technology",
-        "Government College of Technology, Coimbatore",
-        "Hindusthan College of Engineering and Technology",
-        "Karpagam College of Engineering",
-        "Karunya Institute of Technology and Sciences",
-        "Kumaraguru College of Technology",
-        "PSG College of Technology",
-        "PSG Institute of Technology and Applied Research",
-        "SNS College of Technology",
-        "Sri Krishna College of Engineering and Technology",
-        "Sri Ramakrishna Engineering College"
+        "Sengunthar Engineering College",
+        "Vidyaa Vikas College of Engineering and Technology",
+        "Vivekanandha College of Engineering for Women",
+        "Vivekanandha College of Technology for Women"
       ]
     },
     {
@@ -69,26 +77,42 @@
       "colleges": [
         "Government College of Engineering, Dharmapuri",
         "Jayalakshmi Institute of Technology",
+        "Jayam College of Engineering and Technology",
+        "Sapthagiri College of Engineering",
+        "Shreenivasa Engineering College",
         "Varuvan Vadivelan Institute of Technology"
       ]
     },
     {
-      "name": "Tiruppur",
+      "name": "Kallakurichi",
       "colleges": [
-        "Jai Shriram Engineering College",
-        "Sasurie College of Engineering"
+        "A.K.T. Memorial College of Engineering and Technology",
+        "Annai Teresa College of Engineering",
+        "Idhaya Engineering College for Women",
+        "Maha Barathi Engineering College",
+        "T.S.M. Jain College of Technology"
       ]
     },
     {
-      "name": "Tiruchirappalli",
+      "name": "Krishnagiri",
       "colleges": [
-        "CARE College of Engineering",
-        "K. Ramakrishnan College of Engineering",
-        "K. Ramakrishnan College of Technology",
-        "MAM College of Engineering and Technology",
-        "National Institute of Technology, Tiruchirappalli",
-        "Saranathan College of Engineering",
-        "University College of Engineering, BIT Campus"
+        "Adhiyamaan College of Engineering",
+        "ER. Perumal Manimekalai College of Engineering",
+        "Government College of Engineering, Bargur",
+        "P.S.V. College of Engineering and Technology"
+      ]
+    },
+    {
+      "name": "Karur",
+      "colleges": [
+        "Arulmurugan College of Engineering",
+        "Cheran College of Engineering",
+        "Chettinad College of Engineering and Technology",
+        "Karur College of Engineering",
+        "M. Kumarasamy College of Engineering",
+        "N.S.N College of Engineering and Technology",
+        "V.K.S. College of Engineering and Technology",
+        "V.S.B. Engineering College"
       ]
     }
   ]
