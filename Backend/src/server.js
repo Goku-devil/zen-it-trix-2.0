@@ -23,13 +23,31 @@ const pool = mariadb.createPool({
 app.use(cors({ origin: allowedOrigin }))
 app.use(express.json({ limit: '20kb' }))
 
-const requiredFields = ['fullName', 'email', 'phone', 'college', 'eventName']
+const requiredFields = ['fullName', 'email', 'phone', 'college', 'yearOfStudy']
 const csvEscape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
 const passCode = (id) => `ZEN${String(id).padStart(3, '0')}`
 
-const ensureAttendanceColumns = async () => {
+const ensureSchema = async () => {
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS present TINYINT(1) NOT NULL DEFAULT 0')
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS present_at TIMESTAMP NULL DEFAULT NULL')
+    await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS year_of_study VARCHAR(30) NOT NULL DEFAULT "1st Year"')
+    await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS registration_type VARCHAR(20) NOT NULL DEFAULT "individual"')
+    await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS team_name VARCHAR(120) NULL DEFAULT NULL')
+    await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS technical_event VARCHAR(120) NULL DEFAULT NULL')
+    await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS non_technical_event VARCHAR(120) NULL DEFAULT NULL')
+    await pool.query('ALTER TABLE registrations MODIFY COLUMN event_name VARCHAR(255) NOT NULL')
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS team_members (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            registration_id INT UNSIGNED NOT NULL,
+            member_name VARCHAR(120) NOT NULL,
+            member_order TINYINT UNSIGNED NOT NULL DEFAULT 1,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            INDEX idx_team_members_reg_id (registration_id),
+            CONSTRAINT fk_team_members_registration FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE
+        )
+    `)
 }
 
 const requireAdmin = (request, response, next) => {
@@ -73,23 +91,103 @@ app.get('/api/health', async (_request, response) => {
 })
 
 const saveRegistration = async (request, response) => {
-    const { fullName, email, phone, college, eventName, teamSize = 1 } = request.body
-    const missingField = requiredFields.find((field) => typeof request.body[field] !== 'string' || !request.body[field].trim())
-    const normalizedTeamSize = Number(teamSize)
+    const {
+        fullName,
+        email,
+        phone,
+        college,
+        yearOfStudy = '1st Year',
+        eventName,
+        technicalEvent = null,
+        nonTechnicalEvent = null,
+        registrationType = 'individual',
+        teamName = null,
+        teamSize = 1,
+        teamMembers = [],
+    } = request.body
 
+    const missingField = requiredFields.find((field) => typeof request.body[field] !== 'string' || !request.body[field].trim())
     if (missingField) return response.status(400).json({ message: `${missingField} is required.` })
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return response.status(400).json({ message: 'Enter a valid email address.' })
-    if (!Number.isInteger(normalizedTeamSize) || normalizedTeamSize < 1 || normalizedTeamSize > 10) {
-        return response.status(400).json({ message: 'Team size must be between 1 and 10.' })
+
+    const cleanTech = technicalEvent ? String(technicalEvent).trim() : null
+    const cleanNonTech = nonTechnicalEvent ? String(nonTechnicalEvent).trim() : null
+    let computedEventName = eventName ? String(eventName).trim() : ''
+
+    if (!computedEventName && (cleanTech || cleanNonTech)) {
+        computedEventName = [cleanTech, cleanNonTech].filter(Boolean).join(' + ')
+    }
+
+    if (!computedEventName) {
+        return response.status(400).json({ message: 'Please select at least one event (Technical or Non-Technical).' })
+    }
+
+    const isTeam = registrationType === 'team'
+    const normalizedType = isTeam ? 'team' : 'individual'
+    const normalizedTeamName = isTeam ? (teamName ? String(teamName).trim() : '') : null
+
+    if (isTeam && !normalizedTeamName) {
+        return response.status(400).json({ message: 'Team name is required for team registrations.' })
+    }
+
+    const normalizedTeamSize = isTeam ? Math.min(5, Math.max(2, Number(teamSize) || 2)) : 1
+
+    let cleanedMembers = []
+    if (isTeam) {
+        if (Array.isArray(teamMembers)) {
+            cleanedMembers = teamMembers.map((m) => String(m ?? '').trim()).filter(Boolean)
+        }
+        if (cleanedMembers.length === 0 || cleanedMembers[0] !== fullName.trim()) {
+            cleanedMembers = [fullName.trim(), ...cleanedMembers]
+        }
+        if (cleanedMembers.length < normalizedTeamSize) {
+            return response.status(400).json({
+                message: `Please provide names for all ${normalizedTeamSize} team members.`,
+            })
+        }
+        cleanedMembers = cleanedMembers.slice(0, normalizedTeamSize)
     }
 
     try {
         const result = await pool.query(
-            `INSERT INTO registrations (full_name, email, phone, college, event_name, team_size)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [fullName.trim(), email.trim().toLowerCase(), phone.trim(), college.trim(), eventName.trim(), normalizedTeamSize],
+            `INSERT INTO registrations (full_name, email, phone, college, year_of_study, event_name, technical_event, non_technical_event, registration_type, team_name, team_size)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                fullName.trim(),
+                email.trim().toLowerCase(),
+                phone.trim(),
+                college.trim(),
+                String(yearOfStudy || '1st Year').trim(),
+                computedEventName,
+                cleanTech,
+                cleanNonTech,
+                normalizedType,
+                normalizedTeamName,
+                normalizedTeamSize,
+            ],
         )
-        response.status(201).json({ message: 'Registration completed.', registrationId: Number(result.insertId) })
+
+        const registrationId = Number(result.insertId)
+
+        if (isTeam && cleanedMembers.length > 0) {
+            for (let i = 0; i < cleanedMembers.length; i++) {
+                await pool.query(
+                    `INSERT INTO team_members (registration_id, member_name, member_order)
+                     VALUES (?, ?, ?)`,
+                    [registrationId, cleanedMembers[i], i + 1],
+                )
+            }
+        }
+
+        response.status(201).json({
+            message: 'Registration completed.',
+            registrationId,
+            registrationType: normalizedType,
+            teamName: normalizedTeamName,
+            eventName: computedEventName,
+            technicalEvent: cleanTech,
+            nonTechnicalEvent: cleanNonTech,
+        })
     } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') return response.status(409).json({ message: 'This email is already registered for that event.' })
         console.error(error)
@@ -102,11 +200,23 @@ app.post('/api/registrations', saveRegistration)
 app.get('/api/admin/registrations', requireAdmin, async (_request, response) => {
     try {
         const rows = await pool.query(
-            `SELECT id, full_name AS fullName, email, phone, college, event_name AS eventName, team_size AS teamSize,
-                    present, present_at AS presentAt, created_at AS createdAt
-             FROM registrations ORDER BY id DESC`,
+            `SELECT r.id, r.full_name AS fullName, r.email, r.phone, r.college,
+                    r.year_of_study AS yearOfStudy, r.event_name AS eventName,
+                    r.technical_event AS technicalEvent, r.non_technical_event AS nonTechnicalEvent,
+                    r.registration_type AS registrationType, r.team_name AS teamName,
+                    r.team_size AS teamSize, r.present, r.present_at AS presentAt,
+                    r.created_at AS createdAt,
+                    GROUP_CONCAT(tm.member_name ORDER BY tm.member_order SEPARATOR ', ') AS teamMembersList
+             FROM registrations r
+             LEFT JOIN team_members tm ON r.id = tm.registration_id
+             GROUP BY r.id
+             ORDER BY r.id DESC`,
         )
-        response.json(rows.map((row) => ({ ...row, passCode: passCode(row.id) })))
+        response.json(rows.map((row) => ({
+            ...row,
+            passCode: passCode(row.id),
+            teamMembers: row.teamMembersList ? row.teamMembersList.split(', ') : [],
+        })))
     } catch (error) {
         console.error(error)
         response.status(500).json({ message: 'The registrations could not be loaded.' })
@@ -144,11 +254,35 @@ app.get('/api/admin/registrations/:id/barcode', requireAdmin, async (request, re
 app.get('/api/registrations/export', requireAdmin, async (_request, response) => {
     try {
         const rows = await pool.query(
-            `SELECT id, full_name, email, phone, college, event_name, team_size, present, present_at, created_at
-             FROM registrations
-             ORDER BY created_at DESC`,
+            `SELECT r.id, r.full_name, r.email, r.phone, r.college, r.year_of_study,
+                    r.event_name, r.technical_event, r.non_technical_event,
+                    r.registration_type, r.team_name, r.team_size,
+                    r.present, r.present_at, r.created_at,
+                    GROUP_CONCAT(tm.member_name ORDER BY tm.member_order SEPARATOR '; ') AS team_members
+             FROM registrations r
+             LEFT JOIN team_members tm ON r.id = tm.registration_id
+             GROUP BY r.id
+             ORDER BY r.created_at DESC`,
         )
-        const header = ['ID', 'Pass', 'Full name', 'Email', 'Phone', 'College', 'Event', 'Team size', 'Present', 'Present at', 'Registered at']
+        const header = [
+            'ID',
+            'Pass',
+            'Full name',
+            'Email',
+            'Phone',
+            'College',
+            'Year of study',
+            'Events',
+            'Technical event',
+            'Non-technical event',
+            'Registration type',
+            'Team name',
+            'Team size',
+            'Team members',
+            'Present',
+            'Present at',
+            'Registered at',
+        ]
         const csv = [
             header,
             ...rows.map((row) => [
@@ -158,8 +292,14 @@ app.get('/api/registrations/export', requireAdmin, async (_request, response) =>
                 row.email,
                 row.phone,
                 row.college,
+                row.year_of_study,
                 row.event_name,
+                row.technical_event ?? '',
+                row.non_technical_event ?? '',
+                row.registration_type,
+                row.team_name ?? '',
                 row.team_size,
+                row.team_members ?? row.full_name,
                 row.present ? 'YES' : 'NO',
                 row.present_at instanceof Date ? row.present_at.toISOString() : row.present_at,
                 row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
@@ -176,9 +316,9 @@ app.get('/api/registrations/export', requireAdmin, async (_request, response) =>
 
 app.use((_request, response) => response.status(404).json({ message: 'Route not found.' }))
 
-ensureAttendanceColumns()
+ensureSchema()
     .then(() => app.listen(port, () => console.log(`Zen-it-trix API listening on http://localhost:${port}`)))
     .catch((error) => {
-        console.error('Could not prepare attendance columns.', error)
+        console.error('Could not prepare database schema.', error)
         process.exitCode = 1
     })
