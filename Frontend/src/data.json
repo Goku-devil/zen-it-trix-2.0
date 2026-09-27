@@ -1,0 +1,95 @@
+{
+  "districts": [
+    {
+      "name": "Salem",
+      "colleges": [
+        "Annapoorana Engineering College",
+        "AVS Engineering College",
+        "Bannari Amman Institute of Technology",
+        "Dhirajlal Gandhi College of Technology",
+        "Government College of Engineering, Salem",
+        "J.K.K. Nattraja College of Engineering and Technology",
+        "K.S.R. College of Engineering",
+        "Maharaja Institute of Technology",
+        "Paavai Engineering College",
+        "Sona College of Technology",
+        "Sri Ganesh School of Engineering and Technology",
+        "Vellalar College for Women"
+      ]
+    },
+    {
+      "name": "Erode",
+      "colleges": [
+        "Bannari Amman Institute of Technology",
+        "Erode Builder Educational Trust's Group of Institutions",
+        "Kongu Engineering College",
+        "Nandha Engineering College",
+        "PSG College of Technology",
+        "Sri Krishna College of Engineering and Technology",
+        "Surya Engineering College",
+        "Velalar College of Engineering and Technology",
+        "Vellalar College of Engineering and Technology"
+      ]
+    },
+    {
+      "name": "Namakkal",
+      "colleges": [
+        "Excel Engineering College",
+        "Gnanamani College of Technology",
+        "K.S.R. College of Engineering",
+        "K.S.R. Institute for Engineering and Technology",
+        "Muthayammal Engineering College",
+        "Paavai College of Engineering",
+        "Paavai Engineering College",
+        "PGP College of Engineering and Technology",
+        "Selvam College of Technology",
+        "Sona College of Technology",
+        "Sri Ramakrishna Engineering College",
+        "Vivekanandha College of Engineering for Women"
+      ]
+    },
+    {
+      "name": "Coimbatore",
+      "colleges": [
+        "Coimbatore Institute of Technology",
+        "Government College of Technology, Coimbatore",
+        "Hindusthan College of Engineering and Technology",
+        "Karpagam College of Engineering",
+        "Karunya Institute of Technology and Sciences",
+        "Kumaraguru College of Technology",
+        "PSG College of Technology",
+        "PSG Institute of Technology and Applied Research",
+        "SNS College of Technology",
+        "Sri Krishna College of Engineering and Technology",
+        "Sri Ramakrishna Engineering College"
+      ]
+    },
+    {
+      "name": "Dharmapuri",
+      "colleges": [
+        "Government College of Engineering, Dharmapuri",
+        "Jayalakshmi Institute of Technology",
+        "Varuvan Vadivelan Institute of Technology"
+      ]
+    },
+    {
+      "name": "Tiruppur",
+      "colleges": [
+        "Jai Shriram Engineering College",
+        "Sasurie College of Engineering"
+      ]
+    },
+    {
+      "name": "Tiruchirappalli",
+      "colleges": [
+        "CARE College of Engineering",
+        "K. Ramakrishnan College of Engineering",
+        "K. Ramakrishnan College of Technology",
+        "MAM College of Engineering and Technology",
+        "National Institute of Technology, Tiruchirappalli",
+        "Saranathan College of Engineering",
+        "University College of Engineering, BIT Campus"
+      ]
+    }
+  ]
+}

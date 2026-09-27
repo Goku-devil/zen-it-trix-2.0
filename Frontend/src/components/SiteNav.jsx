@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Brand from './Brand'
 
-export default function SiteNav() {
+export default function SiteNav({ isAdmin = false }) {
     const [menuOpen, setMenuOpen] = useState(false)
     const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -41,8 +41,13 @@ export default function SiteNav() {
 
     return (
         <nav className={`site-nav${menuOpen ? ' menu-open' : ''}`} aria-label="Main navigation">
-            <a href="#top"><Brand /></a>
+            <a href={isAdmin ? '#' : '#top'}><Brand /></a>
             <div className="nav-links">
+                {isAdmin && (
+                    <a href="#" onClick={closeMenu}>
+                        Home
+                    </a>
+                )}
                 <a href="#events" onClick={closeMenu}>
                     Events
                 </a>
@@ -53,9 +58,15 @@ export default function SiteNav() {
                     Contact
                 </a>
             </div>
-            <a className="nav-cta" href="#events">
-                Explore events <span>↘</span>
-            </a>
+            {isAdmin ? (
+                <a className="nav-cta" href="#">
+                    Main site <span>↖</span>
+                </a>
+            ) : (
+                <a className="nav-cta" href="#events">
+                    Explore events <span>↘</span>
+                </a>
+            )}
             <button
                 className="nav-toggle"
                 type="button"
@@ -69,6 +80,11 @@ export default function SiteNav() {
             <div className="mobile-navigation" id="mobile-navigation">
                 <span className="mobile-navigation-label">Navigate</span>
                 <div className="mobile-navigation-links">
+                    {isAdmin && (
+                        <a href="#" onClick={closeMenu}>
+                            00 <span>Main site</span><b>↖</b>
+                        </a>
+                    )}
                     <a href="#events" onClick={closeMenu}>
                         01 <span>Events</span><b>↘</b>
                     </a>

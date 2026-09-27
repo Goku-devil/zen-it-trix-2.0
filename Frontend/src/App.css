@@ -158,6 +158,19 @@ main::after {
     margin-right: 5px;
 }
 
+.zen-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f6f2e9;
+    border: 1.5px solid var(--lime, #d5ff4b);
+    object-fit: contain;
+    padding: 2px;
+    flex-shrink: 0;
+    box-shadow: 0 0 10px rgba(213, 255, 75, .25);
+    display: block;
+}
+
 .brand>span {
     width: 30px;
     height: 30px;

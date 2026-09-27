@@ -309,6 +309,19 @@ main::after {
     isolation: isolate;
 }
 
+.zen-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f6f2e9;
+    border: 1.5px solid var(--lime);
+    object-fit: contain;
+    padding: 2px;
+    flex-shrink: 0;
+    box-shadow: 0 0 10px rgba(213, 255, 75, .25);
+    display: block;
+}
+
 .brand>span {
     width: 30px;
     height: 30px;
@@ -1020,7 +1033,8 @@ h2 em {
 }
 
 .registration-modal form,
-.registration-fields {
+.registration-fields,
+.college-selector-container {
     display: grid;
     gap: 14px;
 }
@@ -1089,15 +1103,15 @@ h2 em {
 }
 
 .admin-page {
-    min-height: 100vh;
-    padding: clamp(28px, 5vw, 72px);
+    min-height: calc(100vh - 76px);
+    padding: clamp(28px, 5vw, 60px);
     background: var(--paper);
     color: var(--ink);
 }
 
 .admin-login {
     width: min(100%, 520px);
-    margin: 8vh auto;
+    margin: 40px auto;
     padding: clamp(28px, 6vw, 60px);
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, .03);
@@ -1343,6 +1357,12 @@ h2 em {
         background: white;
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
+    }
+
+    .site-nav,
+    footer,
+    .animated-overlay {
+        display: none !important;
     }
 
     .admin-page>*:not(.student-pass) {
@@ -1867,6 +1887,11 @@ footer h2 {
 
     .brand {
         font-size: 13px;
+    }
+
+    .zen-logo {
+        width: 26px;
+        height: 26px;
     }
 
     .animated-overlay {

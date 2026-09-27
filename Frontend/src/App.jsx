@@ -1,9 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './AppV2.css'
 import { nonTechnicalEvents, schedule, technicalEvents } from './data'
 import ContactSection from './components/ContactSection'
 import AnimatedOverlay from './components/AnimatedOverlay'
-import AdminPage from './components/AdminPage'
 import AdminDashboard from './components/AdminDashboard'
 import EventsSection from './components/EventsSection'
 import Footer from './components/Footer'
@@ -17,10 +16,26 @@ function IntroStrip() {
 }
 
 function App() {
-    if (window.location.hash === '#admin') return <AdminDashboard />
-
     const [theme, setTheme] = useState('default')
     const [registration, setRegistration] = useState(null)
+    const [hash, setHash] = useState(() => window.location.hash)
+
+    useEffect(() => {
+        const handleHashChange = () => setHash(window.location.hash)
+        window.addEventListener('hashchange', handleHashChange)
+        return () => window.removeEventListener('hashchange', handleHashChange)
+    }, [])
+
+    if (hash === '#admin') {
+        return (
+            <main className={`theme-${theme}`}>
+                <AnimatedOverlay />
+                <SiteNav isAdmin={true} />
+                <AdminDashboard />
+                <Footer theme={theme} onThemeChange={setTheme} />
+            </main>
+        )
+    }
 
     return <main className={`theme-${theme}`}><AnimatedOverlay /><SiteNav /><Hero onRegister={() => setRegistration({})} /><IntroStrip /><EventsSection technicalEvents={technicalEvents} nonTechnicalEvents={nonTechnicalEvents} onRegister={(eventName) => setRegistration({ eventName })} /><Schedule items={schedule} /><ContactSection technicalEvents={technicalEvents} nonTechnicalEvents={nonTechnicalEvents} /><Footer theme={theme} onThemeChange={setTheme} />{registration && <RegistrationForm initialEvent={registration.eventName} events={[...technicalEvents, ...nonTechnicalEvents]} onClose={() => setRegistration(null)} />}</main>
 }

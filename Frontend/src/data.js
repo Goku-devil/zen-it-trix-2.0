@@ -22,3 +22,7 @@ export const schedule = [
     ['04:30 PM', 'Prize ceremony', 'Auditorium'],
 ]
 
+import data from './data.json'
+
+export const districts = data.districts
+export const district = data.districts
