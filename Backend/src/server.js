@@ -1,26 +1,49 @@
-import 'dotenv/config'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
+import dotenv from 'dotenv'
 import bwipjs from 'bwip-js'
 import cors from 'cors'
 import express from 'express'
 import mariadb from 'mariadb'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
+dotenv.config()
+
 const app = express()
 const port = Number(process.env.PORT || 4000)
-const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
+const allowedOriginEnv = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
 const adminUsername = process.env.ADMIN_USERNAME || 'admin'
-const adminPassword = process.env.ADMIN_PASSWORD || 'change_this_password'
+const adminPassword = process.env.ADMIN_PASSWORD || 'admin@zen-ti-trix-2'
 const adminSessions = new Map()
+
 const pool = mariadb.createPool({
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
+    user: process.env.DB_USER || 'zen_it_trix_db',
+    password: process.env.DB_PASSWORD || 'root',
     database: process.env.DB_NAME || 'zen_it_trix',
     connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 5),
 })
 
-app.use(cors({ origin: allowedOrigin }))
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true)
+        const allowed = [
+            'http://localhost:5173',
+            'http://127.0.0.1:5173',
+            'http://localhost:8080',
+            'http://127.0.0.1:8080',
+            allowedOriginEnv,
+        ]
+        if (allowed.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+            return callback(null, true)
+        }
+        return callback(null, true)
+    },
+    credentials: true,
+}))
 app.use(express.json({ limit: '20kb' }))
 
 const requiredFields = ['fullName', 'email', 'phone', 'college', 'yearOfStudy']
@@ -31,6 +54,7 @@ const ensureSchema = async () => {
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS present TINYINT(1) NOT NULL DEFAULT 0')
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS present_at TIMESTAMP NULL DEFAULT NULL')
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS year_of_study VARCHAR(30) NOT NULL DEFAULT "1st Year"')
+    await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS college_id VARCHAR(60) NULL DEFAULT NULL')
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS registration_type VARCHAR(20) NOT NULL DEFAULT "individual"')
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS team_name VARCHAR(120) NULL DEFAULT NULL')
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS technical_event VARCHAR(120) NULL DEFAULT NULL')
@@ -48,6 +72,20 @@ const ensureSchema = async () => {
             CONSTRAINT fk_team_members_registration FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE
         )
     `)
+    try {
+        await pool.query(`
+            UPDATE registrations 
+            SET full_name = CONCAT(TRIM(REGEXP_REPLACE(full_name, '(?i)\\\\s*\\\\(?\\\\s*leader\\\\s*\\\\)?$', '')), ' (leader)')
+            WHERE registration_type = 'team' AND full_name NOT LIKE '%(leader)'
+        `)
+        await pool.query(`
+            UPDATE team_members
+            SET member_name = CONCAT(TRIM(REGEXP_REPLACE(member_name, '(?i)\\\\s*\\\\(?\\\\s*leader\\\\s*\\\\)?$', '')), ' (leader)')
+            WHERE member_order = 1 AND member_name NOT LIKE '%(leader)'
+        `)
+    } catch {
+        // Schema normalization best effort
+    }
 }
 
 const requireAdmin = (request, response, next) => {
@@ -96,6 +134,7 @@ const saveRegistration = async (request, response) => {
         email,
         phone,
         college,
+        collegeId = null,
         yearOfStudy = '1st Year',
         eventName,
         technicalEvent = null,
@@ -108,7 +147,19 @@ const saveRegistration = async (request, response) => {
 
     const missingField = requiredFields.find((field) => typeof request.body[field] !== 'string' || !request.body[field].trim())
     if (missingField) return response.status(400).json({ message: `${missingField} is required.` })
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return response.status(400).json({ message: 'Enter a valid email address.' })
+
+    const cleanEmail = String(email || '').replace(/\s+/g, '').trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return response.status(400).json({ message: 'Enter a valid email address without spaces.' })
+    }
+
+    const cleanPhone = String(phone || '').replace(/\D/g, '').trim()
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+        return response.status(400).json({ message: 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.' })
+    }
+
+    const cleanCollege = String(college || '').replace(/\s+/g, ' ').trim()
+    const cleanCollegeId = collegeId ? String(collegeId).replace(/\s+/g, '').trim().toUpperCase() : null
 
     const cleanTech = technicalEvent ? String(technicalEvent).trim() : null
     const cleanNonTech = nonTechnicalEvent ? String(nonTechnicalEvent).trim() : null
@@ -132,13 +183,37 @@ const saveRegistration = async (request, response) => {
 
     const normalizedTeamSize = isTeam ? Math.min(5, Math.max(2, Number(teamSize) || 2)) : 1
 
+    const formatLeaderName = (name) => {
+        if (!name) return ''
+        const trimmed = String(name).trim()
+        const base = trimmed.replace(/\s*(?:\(?\s*leader\s*\)?)$/i, '').trim()
+        return base ? `${base} (leader)` : trimmed
+    }
+
+    const cleanInputName = (name) => {
+        if (!name) return ''
+        const trimmed = String(name).trim()
+        if (/\s+leader$/i.test(trimmed)) {
+            return trimmed.replace(/\s+leader$/i, ' (leader)')
+        }
+        return trimmed
+    }
+
+    let finalFullName = cleanInputName(fullName)
+    if (isTeam) {
+        finalFullName = formatLeaderName(fullName)
+    }
+
     let cleanedMembers = []
     if (isTeam) {
         if (Array.isArray(teamMembers)) {
-            cleanedMembers = teamMembers.map((m) => String(m ?? '').trim()).filter(Boolean)
+            cleanedMembers = teamMembers.map((m) => cleanInputName(m)).filter(Boolean)
         }
-        if (cleanedMembers.length === 0 || cleanedMembers[0] !== fullName.trim()) {
-            cleanedMembers = [fullName.trim(), ...cleanedMembers]
+        if (cleanedMembers.length === 0 || cleanedMembers[0] !== finalFullName) {
+            cleanedMembers = [finalFullName, ...cleanedMembers.filter((m) => m !== finalFullName && m !== fullName.trim())]
+        }
+        if (cleanedMembers.length > 0) {
+            cleanedMembers[0] = formatLeaderName(cleanedMembers[0])
         }
         if (cleanedMembers.length < normalizedTeamSize) {
             return response.status(400).json({
@@ -150,13 +225,14 @@ const saveRegistration = async (request, response) => {
 
     try {
         const result = await pool.query(
-            `INSERT INTO registrations (full_name, email, phone, college, year_of_study, event_name, technical_event, non_technical_event, registration_type, team_name, team_size)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO registrations (full_name, email, phone, college, college_id, year_of_study, event_name, technical_event, non_technical_event, registration_type, team_name, team_size)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                fullName.trim(),
-                email.trim().toLowerCase(),
-                phone.trim(),
-                college.trim(),
+                finalFullName,
+                cleanEmail,
+                cleanPhone,
+                cleanCollege,
+                cleanCollegeId,
                 String(yearOfStudy || '1st Year').trim(),
                 computedEventName,
                 cleanTech,
@@ -188,10 +264,11 @@ const saveRegistration = async (request, response) => {
             technicalEvent: cleanTech,
             nonTechnicalEvent: cleanNonTech,
             passCode: passCode(registrationId),
-            fullName: fullName.trim(),
-            college: college.trim(),
+            fullName: finalFullName,
+            college: cleanCollege,
+            collegeId: cleanCollegeId,
             yearOfStudy: String(yearOfStudy || '1st Year').trim(),
-            teamMembers: isTeam ? cleanedMembers : [fullName.trim()],
+            teamMembers: isTeam ? cleanedMembers : [finalFullName],
             teamSize: normalizedTeamSize,
         })
     } catch (error) {
@@ -206,7 +283,7 @@ app.post('/api/registrations', saveRegistration)
 app.get('/api/admin/registrations', requireAdmin, async (_request, response) => {
     try {
         const rows = await pool.query(
-            `SELECT r.id, r.full_name AS fullName, r.email, r.phone, r.college,
+            `SELECT r.id, r.full_name AS fullName, r.email, r.phone, r.college, r.college_id AS collegeId,
                     r.year_of_study AS yearOfStudy, r.event_name AS eventName,
                     r.technical_event AS technicalEvent, r.non_technical_event AS nonTechnicalEvent,
                     r.registration_type AS registrationType, r.team_name AS teamName,
@@ -245,6 +322,38 @@ app.post('/api/admin/registrations/:id/present', requireAdmin, async (request, r
     }
 })
 
+app.post('/api/admin/registrations/:id/toggle-attendance', requireAdmin, async (request, response) => {
+    try {
+        const id = Number(request.params.id)
+        const rows = await pool.query('SELECT present FROM registrations WHERE id = ?', [id])
+        if (!rows.length) return response.status(404).json({ message: 'Registration not found.' })
+        const nextState = rows[0].present ? 0 : 1
+        await pool.query(
+            'UPDATE registrations SET present = ?, present_at = ? WHERE id = ?',
+            [nextState, nextState ? new Date() : null, id]
+        )
+        response.json({ message: nextState ? 'Marked present' : 'Marked not present', present: nextState })
+    } catch (error) {
+        console.error(error)
+        response.status(500).json({ message: 'Attendance toggle failed.' })
+    }
+})
+
+app.post('/api/admin/registrations/bulk-present', requireAdmin, async (request, response) => {
+    const { ids } = request.body
+    if (!Array.isArray(ids) || ids.length === 0) return response.status(400).json({ message: 'No IDs provided.' })
+    try {
+        await pool.query(
+            'UPDATE registrations SET present = 1, present_at = COALESCE(present_at, CURRENT_TIMESTAMP) WHERE id IN (?)',
+            [ids.map(Number)]
+        )
+        response.json({ message: `Marked ${ids.length} registrations as present.` })
+    } catch (error) {
+        console.error(error)
+        response.status(500).json({ message: 'Bulk attendance update failed.' })
+    }
+})
+
 app.get('/api/barcode/:code', async (request, response) => {
     const code = String(request.params.code || '').trim().toUpperCase()
     if (!/^ZEN\d{3,}(?:-[0-9A-Za-z]+)?$/.test(code)) {
@@ -276,7 +385,7 @@ app.get('/api/admin/registrations/:id/barcode', requireAdmin, async (request, re
 app.get('/api/registrations/export', requireAdmin, async (_request, response) => {
     try {
         const rows = await pool.query(
-            `SELECT r.id, r.full_name, r.email, r.phone, r.college, r.year_of_study,
+            `SELECT r.id, r.full_name, r.email, r.phone, r.college, r.college_id, r.year_of_study,
                     r.event_name, r.technical_event, r.non_technical_event,
                     r.registration_type, r.team_name, r.team_size,
                     r.present, r.present_at, r.created_at,
@@ -293,6 +402,7 @@ app.get('/api/registrations/export', requireAdmin, async (_request, response) =>
             'Email',
             'Phone',
             'College',
+            'College ID',
             'Year of study',
             'Events',
             'Technical event',
@@ -314,6 +424,7 @@ app.get('/api/registrations/export', requireAdmin, async (_request, response) =>
                 row.email,
                 row.phone,
                 row.college,
+                row.college_id ?? '',
                 row.year_of_study,
                 row.event_name,
                 row.technical_event ?? '',

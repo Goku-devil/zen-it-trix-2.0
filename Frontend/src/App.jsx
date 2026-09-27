@@ -16,9 +16,14 @@ function IntroStrip() {
 }
 
 function App() {
-    const [theme, setTheme] = useState('default')
+    const [theme, setTheme] = useState(() => localStorage.getItem('zen-theme') || 'terminal')
     const [registration, setRegistration] = useState(null)
     const [hash, setHash] = useState(() => window.location.hash)
+
+    useEffect(() => {
+        localStorage.setItem('zen-theme', theme)
+        document.documentElement.setAttribute('data-theme', theme)
+    }, [theme])
 
     useEffect(() => {
         const handleHashChange = () => setHash(window.location.hash)

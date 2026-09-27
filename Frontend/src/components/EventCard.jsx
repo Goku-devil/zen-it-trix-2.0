@@ -31,11 +31,11 @@ export default function EventCard({ event, onRegister }) {
 
             <div className="event-pill-row">
                 <span className="event-pill" title="Event Venue">
-                    <span className="pill-icon">📍</span>
+                    <span className="pill-icon">Venue:</span>
                     <span>{event.venue}</span>
                 </span>
                 <span className="event-pill" title="Faculty/Student In-Charge">
-                    <span className="pill-icon">👤</span>
+                    <span className="pill-icon">Lead:</span>
                     <span>{event.inCharge}</span>
                 </span>
             </div>
@@ -67,10 +67,10 @@ export default function EventCard({ event, onRegister }) {
                             <span className="drawer-label">Coordinator</span>
                             <div className="coord-contact-row">
                                 <a href={`tel:${event.phone}`} className="coord-link">
-                                    📞 {event.phone}
+                                    Tel: {event.phone}
                                 </a>
                                 <a href={`mailto:${event.contact}`} className="coord-link">
-                                    ✉️ {event.contact}
+                                    Email: {event.contact}
                                 </a>
                             </div>
                         </div>

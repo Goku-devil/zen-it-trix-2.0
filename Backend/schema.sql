@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS registrations (
     email VARCHAR(255) NOT NULL,
     phone VARCHAR(30) NOT NULL,
     college VARCHAR(180) NOT NULL,
+    college_id VARCHAR(60) NULL DEFAULT NULL,
     year_of_study VARCHAR(30) NOT NULL DEFAULT '1st Year',
     event_name VARCHAR(255) NOT NULL,
     technical_event VARCHAR(120) NULL DEFAULT NULL,

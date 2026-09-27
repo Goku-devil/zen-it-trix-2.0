@@ -6,7 +6,7 @@ export default function Footer({ theme, onThemeChange }) {
         ['About the college', 'https://aecsalem.edu.in/vision-mission.php'],
         ['Campus directions', 'https://maps.app.goo.gl/K6DzyX7c3oPXhmZ69'],
         ['About the Department', 'https://aecsalem.edu.in/depart-IT.php'],
-        ['Theme Inspiration [Omarchy]', 'hsttps://omarchy.org/themes/'],
+        ['Theme Inspiration [Omarchy]', 'https://omarchy.org/themes/'],
     ]
 
     return (
@@ -36,11 +36,16 @@ export default function Footer({ theme, onThemeChange }) {
                 <a href="tel:8234353434">+91 82343 53434</a>
                 <p>Main Campus<br />Annapoorana Engineering College</p>
                 <label className="theme-switcher">
-                    Theme
-                    <select value={theme} onChange={(event) => onThemeChange(event.target.value)}>
+                    <span className="theme-label">Theme switcher</span>
+                    <select
+                        value={theme}
+                        onChange={(event) => onThemeChange(event.target.value)}
+                        aria-label="Select website theme"
+                    >
+                        <option value="terminal">Terminal Green</option>
+                        <option value="terminal-amber">Terminal Amber</option>
                         <option value="default">Signal Blue</option>
                         <option value="mocha">Catppuccin Mocha</option>
-                        <option value="green">Terminal Green</option>
                     </select>
                 </label>
             </div>

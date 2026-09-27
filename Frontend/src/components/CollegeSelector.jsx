@@ -47,7 +47,7 @@ export default function CollegeSelector({ value = '', onChange, disabled = false
     const handleCustomCollegeChange = (event) => {
         const text = event.target.value
         setCustomCollege(text)
-        onChange(text)
+        onChange(text.trim().replace(/\s+/g, ' '))
     }
 
     const districtObj = data.districts.find((d) => d.name === selectedDistrict)

@@ -5,11 +5,12 @@ export const technicalEvents = [
         number: '01',
         name: 'Paper Presentation',
         description: 'Turn your boldest idea into a story that moves the room.',
-        meta: 'Solo / duo · 8 min',
+        meta: '1 - 3 members · 8 min',
         type: 'both',
         team_and_individual: true,
+        minTeamSize: 1,
         defaultTeamSize: 2,
-        maxTeamSize: 2,
+        maxTeamSize: 3,
         contact: 'tech@zenittrix.in',
         phone: '8234353434',
         inCharge: 'Dr. Anika Rao',
@@ -24,6 +25,7 @@ export const technicalEvents = [
         meta: 'Individual · 30 min',
         type: 'individual',
         team_and_individual: false,
+        minTeamSize: 1,
         defaultTeamSize: 1,
         maxTeamSize: 1,
         contact: 'debug@zenittrix.in',
@@ -40,6 +42,7 @@ export const technicalEvents = [
         meta: 'Teams of 2 · 45 min',
         type: 'team',
         team_and_individual: false,
+        minTeamSize: 2,
         defaultTeamSize: 2,
         maxTeamSize: 2,
         contact: 'design@zenittrix.in',
@@ -56,6 +59,7 @@ export const technicalEvents = [
         meta: 'Teams of 2 · 20 min',
         type: 'team',
         team_and_individual: false,
+        minTeamSize: 2,
         defaultTeamSize: 2,
         maxTeamSize: 2,
         contact: 'quiz@zenittrix.in',
@@ -69,11 +73,12 @@ export const technicalEvents = [
         number: '05',
         name: 'Project Expo',
         description: 'Show the room what you built and why it matters.',
-        meta: 'Teams of 3 · 10 min',
+        meta: 'Teams of 2 - 3 · 10 min',
         type: 'team',
         team_and_individual: false,
+        minTeamSize: 2,
         defaultTeamSize: 3,
-        maxTeamSize: 5,
+        maxTeamSize: 3,
         contact: 'expo@zenittrix.in',
         phone: '8234353438',
         inCharge: 'Priya Shah',
@@ -85,11 +90,12 @@ export const technicalEvents = [
         number: '06',
         name: 'Robo Race',
         description: 'Build, steer, and race your machine through the course.',
-        meta: 'Teams of 3 · Open track',
+        meta: 'Teams of 2 - 3 · Open track',
         type: 'team',
         team_and_individual: false,
+        minTeamSize: 2,
         defaultTeamSize: 3,
-        maxTeamSize: 5,
+        maxTeamSize: 3,
         contact: 'robo@zenittrix.in',
         phone: '8234353439',
         inCharge: 'Vikram Das',
@@ -107,6 +113,7 @@ export const nonTechnicalEvents = [
         meta: 'Squads of 4 · Open lobby',
         type: 'team',
         team_and_individual: false,
+        minTeamSize: 4,
         defaultTeamSize: 4,
         maxTeamSize: 5,
         contact: 'play@zenittrix.in',
@@ -123,6 +130,7 @@ export const nonTechnicalEvents = [
         meta: 'Teams of 2 · Open quiz',
         type: 'team',
         team_and_individual: false,
+        minTeamSize: 2,
         defaultTeamSize: 2,
         maxTeamSize: 2,
         contact: 'mania@zenittrix.in',
@@ -136,11 +144,12 @@ export const nonTechnicalEvents = [
         number: '03',
         name: 'Minute To Win It',
         description: 'Tiny challenges, huge energy, zero time to overthink.',
-        meta: 'Open entry · 60 seconds',
+        meta: '1 - 3 members · 60 sec',
         type: 'both',
         team_and_individual: true,
+        minTeamSize: 1,
         defaultTeamSize: 1,
-        maxTeamSize: 5,
+        maxTeamSize: 3,
         contact: 'fun@zenittrix.in',
         phone: '8234353442',
         inCharge: 'Nikhil Raj',
@@ -191,6 +200,27 @@ export const getFilteredEvents = (eventsList, registrationType) => {
     return eventsList
 }
 
+export const getEffectiveTeamLimits = (techEventName, nonTechEventName) => {
+    const tConf = getEventConfig(techEventName)
+    const ntConf = getEventConfig(nonTechEventName)
+    const configs = [tConf, ntConf].filter(Boolean)
+
+    if (configs.length === 0) {
+        return { minTeamSize: 2, maxTeamSize: 5 }
+    }
+
+    const minSizes = configs.map((c) => (c.type === 'individual' ? 1 : (c.minTeamSize || 2)))
+    const maxSizes = configs.map((c) => c.maxTeamSize || 5)
+
+    let min = Math.max(...minSizes)
+    let max = Math.min(...maxSizes)
+
+    if (min < 2) min = 2
+    if (max < min) max = min
+
+    return { minTeamSize: min, maxTeamSize: max }
+}
+
 export const schedule = [
     ['09:30 AM', 'Registration & check-in', 'Main foyer'],
     ['10:00 AM', 'Inauguration', 'Auditorium'],
@@ -198,7 +228,9 @@ export const schedule = [
     ['01:00 PM', 'Lunch break', 'Campus courtyard'],
     ['02:00 PM', 'Non-technical events', 'Open arena'],
     ['04:30 PM', 'Prize ceremony', 'Auditorium'],
-]
+];
+
+export const whatsappGroupLink = 'https://chat.whatsapp.com/your-group-link';
 
 export const districts = data.districts
 export const district = data.districts
