@@ -216,9 +216,9 @@ export default function AdminPage() {
 
     const toggleStudent = (id) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
 
-    const fetchBarcodeUrl = async (registrationId) => {
-        const response = await fetch(`${API_URL}/admin/registrations/${registrationId}/barcode`, { headers: { Authorization: `Bearer ${token}` } })
-        if (!response.ok) throw new Error('Could not fetch pass barcode.')
+    const fetchBarcodeUrl = async (code) => {
+        const response = await fetch(`${API_URL}/barcode/${encodeURIComponent(code)}`)
+        if (!response.ok) throw new Error(`Could not fetch pass barcode for ${code}.`)
         const blob = await response.blob()
         return new Promise((resolve, reject) => {
             const reader = new FileReader()
@@ -230,7 +230,7 @@ export default function AdminPage() {
 
     const downloadPass = async (registration) => {
         try {
-            const barcodeUrl = await fetchBarcodeUrl(registration.id)
+            const barcodeUrl = await fetchBarcodeUrl(registration.passCode)
             setPass({ ...registration, barcodeUrl })
             setStatus({ type: '', message: '' })
         } catch (error) {
@@ -244,20 +244,49 @@ export default function AdminPage() {
             setStatus({ type: 'error', message: 'Popup blocked. Please allow popups to print.' })
             return
         }
-        printWindow.document.write('<p style="font-family:sans-serif;padding:24px">Preparing student pass...</p>')
+        printWindow.document.write('<p style="font-family:sans-serif;padding:24px">Preparing passes for each member...</p>')
         try {
-            const barcodeUrl = await fetchBarcodeUrl(registration.id)
-            const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(registration.passCode)} Pass</title><link rel="icon" type="image/png" href="${zenLogo}"><style>${themedPassStyles}</style></head><body><article class="pass"><div class="pass-header"><img class="pass-logo" src="${zenLogo}" alt="Zen-it-trix Logo"><div><div class="kicker">Zen-it-trix 2.0</div><div class="sub-kicker">${registration.registrationType === 'team' ? `Team: ${escapeHtml(registration.teamName || 'Pass')}` : 'Student pass'}</div></div></div><div class="code">${escapeHtml(registration.passCode)}</div><div class="name">${escapeHtml(registration.fullName)}</div><div class="meta">${escapeHtml(registration.college)} · ${escapeHtml(registration.yearOfStudy || '')}</div><div class="event">${escapeHtml(registration.eventName)}</div><img class="barcode" src="${barcodeUrl}" alt="Barcode for ${escapeHtml(registration.passCode)}"><div class="small">${registration.registrationType === 'team' && registration.teamMembersList ? `Team members: ${escapeHtml(registration.teamMembersList)}` : 'Present this pass at check-in'}</div></article></body></html>`
+            const passItems = []
+            if (registration.registrationType === 'team' && registration.teamMembers && registration.teamMembers.length > 0) {
+                registration.teamMembers.forEach((memberName, idx) => {
+                    passItems.push({
+                        code: `${registration.passCode}-${idx + 1}`,
+                        fullName: memberName,
+                        college: registration.college,
+                        yearOfStudy: registration.yearOfStudy,
+                        eventName: registration.eventName,
+                        isTeam: true,
+                        teamName: registration.teamName,
+                        memberIndex: idx + 1,
+                        isLeader: idx === 0,
+                    })
+                })
+            } else {
+                passItems.push({
+                    code: registration.passCode,
+                    fullName: registration.fullName,
+                    college: registration.college,
+                    yearOfStudy: registration.yearOfStudy,
+                    eventName: registration.eventName,
+                    isTeam: false,
+                    teamName: null,
+                    memberIndex: 1,
+                    isLeader: false,
+                })
+            }
+
+            const barcodeUrls = await Promise.all(passItems.map((item) => fetchBarcodeUrl(item.code)))
+            const cards = passItems.map((item, index) => `<article class="pass"><div class="pass-header"><img class="pass-logo" src="${zenLogo}" alt="Zen-it-trix Logo"><div><div class="kicker">Zen-it-trix 2.0 // Pass</div><div class="sub-kicker">${item.isTeam ? `Team: ${escapeHtml(item.teamName || 'Pass')} · Member ${item.memberIndex}${item.isLeader ? ' (Leader)' : ''}` : 'Student pass'}</div></div></div><div class="code">${escapeHtml(item.code)}</div><div class="name">${escapeHtml(item.fullName)}</div><div class="meta">${escapeHtml(item.college)} · ${escapeHtml(item.yearOfStudy || '')}</div><div class="event">${escapeHtml(item.eventName)}</div><img class="barcode" src="${barcodeUrls[index]}" alt="Barcode for ${escapeHtml(item.code)}"><div class="small">${item.isTeam ? `Team: ${escapeHtml(item.teamName || '')} · Present this pass at check-in` : 'Present this pass at check-in'}</div></article>`).join('')
             printWindow.document.open()
-            printWindow.document.write(applyPassStyles(html))
+            printWindow.document.write(applyPassStyles(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(registration.passCode)} Passes</title><link rel="icon" type="image/png" href="${zenLogo}"><style>${themedPassStyles}</style></head><body>${cards}</body></html>`))
             printWindow.document.close()
             setTimeout(() => {
                 printWindow.focus()
                 printWindow.print()
             }, 250)
-        } catch {
+        } catch (err) {
             printWindow.close()
-            setStatus({ type: 'error', message: 'The pass could not be printed.' })
+            setStatus({ type: 'error', message: 'The passes could not be printed: ' + err.message })
         }
     }
 

@@ -163,10 +163,16 @@ export default function AdminDashboard() {
         } catch (error) { setStatus({ type: 'error', message: error.message }) }
     }
 
-    const barcode = async (registration) => {
-        const response = await fetch(`${API_URL}/admin/registrations/${registration.id}/barcode`, { headers: { Authorization: `Bearer ${token}` } })
-        if (!response.ok) throw new Error('Barcode request failed.')
-        return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; response.blob().then((blob) => reader.readAsDataURL(blob)).catch(reject) })
+    const fetchBarcode = async (code) => {
+        const response = await fetch(`${API_URL}/barcode/${encodeURIComponent(code)}`)
+        if (!response.ok) throw new Error(`Barcode request for ${code} failed.`)
+        const blob = await response.blob()
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result)
+            reader.onerror = reject
+            reader.readAsDataURL(blob)
+        })
     }
 
     const markPresent = async (registration) => {
@@ -178,15 +184,48 @@ export default function AdminDashboard() {
         if (!ids.length) return
         const printWindow = window.open('', '_blank')
         if (!printWindow) { setStatus({ type: 'error', message: 'Please allow pop-ups to print passes.' }); return }
-        printWindow.document.write('<p style="font-family:sans-serif;padding:24px">Preparing passes...</p>')
+        printWindow.document.write('<p style="font-family:sans-serif;padding:24px">Preparing passes for each student and team member...</p>')
         try {
             const selected = registrations.filter((registration) => ids.includes(registration.id))
             await Promise.all(selected.map(markPresent))
-            const barcodes = await Promise.all(selected.map(barcode))
-            const cards = selected.map((registration, index) => `<article class="pass"><div class="pass-header"><img class="pass-logo" src="${zenLogo}" alt="Zen-it-trix Logo"><div><div class="kicker">Zen-it-trix 2.0</div><div class="sub-kicker">${registration.registrationType === 'team' ? `Team: ${escapeHtml(registration.teamName || 'Pass')}` : 'Student pass'}</div></div></div><div class="code">${escapeHtml(registration.passCode)}</div><div class="name">${escapeHtml(registration.fullName)}</div><div class="meta">${escapeHtml(registration.college)} · ${escapeHtml(registration.yearOfStudy || '')}</div><div class="event">${escapeHtml(registration.eventName)}</div><img class="barcode" src="${barcodes[index]}" alt="Barcode for ${escapeHtml(registration.passCode)}"><div class="small">${registration.registrationType === 'team' && registration.teamMembersList ? `Team members: ${escapeHtml(registration.teamMembersList)}` : 'Present this pass at check-in'}</div></article>`).join('')
-            printWindow.document.open(); printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Zen-it-trix passes</title><link rel="icon" type="image/png" href="${zenLogo}"><style>${passStyles}</style></head><body>${cards}</body></html>`); printWindow.document.close()
+
+            const passItems = []
+            for (const reg of selected) {
+                if (reg.registrationType === 'team' && reg.teamMembers && reg.teamMembers.length > 0) {
+                    reg.teamMembers.forEach((memberName, idx) => {
+                        passItems.push({
+                            code: `${reg.passCode}-${idx + 1}`,
+                            fullName: memberName,
+                            college: reg.college,
+                            yearOfStudy: reg.yearOfStudy,
+                            eventName: reg.eventName,
+                            isTeam: true,
+                            teamName: reg.teamName,
+                            memberIndex: idx + 1,
+                            isLeader: idx === 0,
+                            teamSize: reg.teamSize || reg.teamMembers.length,
+                        })
+                    })
+                } else {
+                    passItems.push({
+                        code: reg.passCode,
+                        fullName: reg.fullName,
+                        college: reg.college,
+                        yearOfStudy: reg.yearOfStudy,
+                        eventName: reg.eventName,
+                        isTeam: false,
+                        teamName: null,
+                        memberIndex: 1,
+                        isLeader: false,
+                    })
+                }
+            }
+
+            const barcodes = await Promise.all(passItems.map((item) => fetchBarcode(item.code)))
+            const cards = passItems.map((item, index) => `<article class="pass"><div class="pass-header"><img class="pass-logo" src="${zenLogo}" alt="Zen-it-trix Logo"><div><div class="kicker">Zen-it-trix 2.0 // Pass</div><div class="sub-kicker">${item.isTeam ? `Team: ${escapeHtml(item.teamName || 'Pass')} · Member ${item.memberIndex}${item.isLeader ? ' (Leader)' : ''}` : 'Student pass'}</div></div></div><div class="code">${escapeHtml(item.code)}</div><div class="name">${escapeHtml(item.fullName)}</div><div class="meta">${escapeHtml(item.college)} · ${escapeHtml(item.yearOfStudy || '')}</div><div class="event">${escapeHtml(item.eventName)}</div><img class="barcode" src="${barcodes[index]}" alt="Barcode for ${escapeHtml(item.code)}"><div class="small">${item.isTeam ? `Team: ${escapeHtml(item.teamName || '')} · Present this pass at check-in` : 'Present this pass at check-in'}</div></article>`).join('')
+            printWindow.document.open(); printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Zen-it-trix passes (${passItems.length} passes)</title><link rel="icon" type="image/png" href="${zenLogo}"><style>${passStyles}</style></head><body>${cards}</body></html>`); printWindow.document.close()
             setTimeout(() => { printWindow.focus(); printWindow.print() }, 250)
-        } catch { printWindow.close(); setStatus({ type: 'error', message: 'Passes could not be prepared for printing.' }) }
+        } catch (err) { printWindow.close(); setStatus({ type: 'error', message: 'Passes could not be prepared for printing: ' + err.message }) }
     }
 
     const toggle = (id) => setSelectedIds((current) => current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id])

@@ -187,6 +187,12 @@ const saveRegistration = async (request, response) => {
             eventName: computedEventName,
             technicalEvent: cleanTech,
             nonTechnicalEvent: cleanNonTech,
+            passCode: passCode(registrationId),
+            fullName: fullName.trim(),
+            college: college.trim(),
+            yearOfStudy: String(yearOfStudy || '1st Year').trim(),
+            teamMembers: isTeam ? cleanedMembers : [fullName.trim()],
+            teamSize: normalizedTeamSize,
         })
     } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') return response.status(409).json({ message: 'This email is already registered for that event.' })
@@ -239,9 +245,25 @@ app.post('/api/admin/registrations/:id/present', requireAdmin, async (request, r
     }
 })
 
+app.get('/api/barcode/:code', async (request, response) => {
+    const code = String(request.params.code || '').trim().toUpperCase()
+    if (!/^ZEN\d{3,}(?:-[0-9A-Za-z]+)?$/.test(code)) {
+        return response.status(400).json({ message: 'Invalid pass code format.' })
+    }
+    try {
+        const png = await bwipjs.toBuffer({ bcid: 'code128', text: code, scale: 3, height: 12, includetext: true, textxalign: 'center' })
+        response.type('image/png').send(png)
+    } catch (error) {
+        console.error(error)
+        response.status(500).json({ message: 'The barcode could not be generated.' })
+    }
+})
+
 app.get('/api/admin/registrations/:id/barcode', requireAdmin, async (request, response) => {
-    const code = passCode(Number(request.params.id))
-    if (!/^ZEN\d{3,}$/.test(code)) return response.status(400).json({ message: 'Invalid registration ID.' })
+    const queryCode = request.query.code ? String(request.query.code).trim().toUpperCase() : null
+    const baseCode = passCode(Number(request.params.id))
+    const code = queryCode && queryCode.startsWith(baseCode) ? queryCode : baseCode
+    if (!/^ZEN\d{3,}(?:-[0-9A-Za-z]+)?$/.test(code)) return response.status(400).json({ message: 'Invalid registration ID or code.' })
     try {
         const png = await bwipjs.toBuffer({ bcid: 'code128', text: code, scale: 3, height: 12, includetext: true, textxalign: 'center' })
         response.type('image/png').send(png)

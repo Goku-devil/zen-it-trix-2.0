@@ -1394,6 +1394,101 @@ h2 em {
     border-color: var(--lime);
 }
 
+.registration-success-card {
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+    background: rgba(213, 255, 75, .04);
+    border: 1px solid var(--lime);
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.registration-success-card .success-header h3 {
+    margin: 8px 0 4px;
+    font-size: 26px;
+    letter-spacing: -.05em;
+    color: var(--paper-light, #f6f2e9);
+}
+
+.registration-success-card .success-badge {
+    display: inline-block;
+    color: var(--lime);
+    font: 600 11px 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.registration-success-card .success-event-name {
+    margin: 0;
+    color: var(--cyan);
+    font: 500 13px 'DM Mono', monospace;
+}
+
+.registration-success-card .success-pass-list {
+    display: grid;
+    gap: 10px;
+}
+
+.registration-success-card .pass-list-heading {
+    font: 600 11px 'DM Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.registration-success-card .pass-badges-grid {
+    display: grid;
+    gap: 8px;
+}
+
+.registration-success-card .pass-pill-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, .45);
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 4px;
+}
+
+.registration-success-card .pass-code-tag {
+    font: 600 13px 'DM Mono', monospace;
+    color: var(--lime);
+    background: rgba(213, 255, 75, .1);
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid rgba(213, 255, 75, .3);
+}
+
+.registration-success-card .pass-member-name {
+    font: 500 14px 'Space Grotesk', sans-serif;
+    color: var(--paper-light, #f6f2e9);
+}
+
+.registration-success-card .success-actions {
+    display: grid;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.registration-success-card .register-another-button {
+    background: transparent;
+    border: 1px dashed var(--line);
+    color: var(--muted);
+    padding: 12px;
+    font: 500 12px 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    cursor: pointer;
+    transition: all .2s ease;
+}
+
+.registration-success-card .register-another-button:hover {
+    border-color: var(--muted);
+    color: var(--paper-light, #f6f2e9);
+}
+
 .admin-page {
     min-height: calc(100vh - 76px);
     padding: clamp(28px, 5vw, 60px);
