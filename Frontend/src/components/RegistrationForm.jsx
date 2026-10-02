@@ -322,9 +322,14 @@ export default function RegistrationForm({ initialEvent = '', onClose }) {
         try {
             const passItems = []
             if (reg.registrationType === 'team' && reg.teamMembers && reg.teamMembers.length > 0) {
-                reg.teamMembers.forEach((memberName, idx) => {
+                reg.teamMembers.forEach((member, idx) => {
+                    const memberName = typeof member === 'object' ? member.name : member
+                    const memberCode = (reg.memberPassCodes && reg.memberPassCodes[idx])
+                        || (typeof member === 'object' && member.passCode)
+                        || (reg.members && reg.members[idx]?.passCode)
+                        || reg.passCode
                     passItems.push({
-                        code: `${reg.passCode}-${idx + 1}`,
+                        code: memberCode,
                         fullName: memberName,
                         college: reg.college,
                         yearOfStudy: reg.yearOfStudy,
@@ -491,10 +496,13 @@ export default function RegistrationForm({ initialEvent = '', onClose }) {
             const result = await response.json()
             if (!response.ok) throw new Error(result.message || 'Registration could not be completed.')
 
-            const passIdStr = result.passCode || `ZEN${String(result.registrationId).padStart(3, '0')}`
+            const passIdStr = result.passCode || `${isTeam ? 'ZEN-T-' : 'ZEN-I-'}${String(result.registrationId).padStart(3, '0')}`
             const fullRegData = {
                 ...result,
                 passCode: passIdStr,
+                passCodeRange: result.passCodeRange || passIdStr,
+                memberPassCodes: result.memberPassCodes || [passIdStr],
+                members: result.members || [{ name: form.fullName.trim(), passCode: passIdStr }],
                 registrationId: result.registrationId,
                 fullName: form.fullName.trim(),
                 college: cleanCollege,
@@ -558,14 +566,14 @@ export default function RegistrationForm({ initialEvent = '', onClose }) {
                         {/* Immediate Success Receipt ID Banner */}
                         <div className="receipt-id-banner">
                             <div className="receipt-id-info">
-                                <span className="receipt-id-kicker">Official Registration ID</span>
-                                <span className="receipt-id-code">{confirmedRegistration.passCode}</span>
+                                <span className="receipt-id-kicker">{confirmedRegistration.registrationType === 'team' ? 'Official Team Passes' : 'Official Registration ID'}</span>
+                                <span className="receipt-id-code">{confirmedRegistration.passCodeRange || confirmedRegistration.passCode}</span>
                             </div>
                             <button
                                 type="button"
                                 className="copy-id-btn"
                                 onClick={() => {
-                                    navigator.clipboard.writeText(confirmedRegistration.passCode)
+                                    navigator.clipboard.writeText(confirmedRegistration.passCodeRange || confirmedRegistration.passCode)
                                     setCopiedId(true)
                                     setTimeout(() => setCopiedId(false), 2500)
                                 }}
@@ -633,12 +641,14 @@ export default function RegistrationForm({ initialEvent = '', onClose }) {
                                     : 'Official student pass:'}
                             </span>
                             <div className="pass-badges-grid">
-                                {confirmedRegistration.teamMembers.map((name, idx) => {
-                                    const code = confirmedRegistration.registrationType === 'team'
-                                        ? `${confirmedRegistration.passCode}-${idx + 1}`
-                                        : confirmedRegistration.passCode
+                                {confirmedRegistration.teamMembers.map((member, idx) => {
+                                    const name = typeof member === 'object' ? member.name : member
+                                    const code = (confirmedRegistration.memberPassCodes && confirmedRegistration.memberPassCodes[idx])
+                                        || (typeof member === 'object' && member.passCode)
+                                        || (confirmedRegistration.members && confirmedRegistration.members[idx]?.passCode)
+                                        || confirmedRegistration.passCode
                                     return (
-                                        <div className="pass-pill-item" key={code}>
+                                        <div className="pass-pill-item" key={code || idx}>
                                             <span className="pass-code-tag">{code}</span>
                                             <span className="pass-member-name">
                                                 {name.toLowerCase().includes('(leader)') ? name : `${name}${idx === 0 && confirmedRegistration.registrationType === 'team' ? ' (leader)' : ''}`}

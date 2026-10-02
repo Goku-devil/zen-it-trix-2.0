@@ -223,7 +223,7 @@ export default function AdminPage() {
             setMemberNames(['', '', '', ''])
             setRegistrationType('individual')
             setFormKey((k) => k + 1)
-            setStatus({ type: 'success', message: `Registered successfully with pass ZEN${String(result.registrationId).padStart(3, '0')}.` })
+            setStatus({ type: 'success', message: `Registered successfully with pass ${result.passCodeRange || result.passCode}.` })
             await loadRegistrations()
         } catch (error) {
             setStatus({ type: 'error', message: error.message })
@@ -280,9 +280,14 @@ export default function AdminPage() {
         try {
             const passItems = []
             if (registration.registrationType === 'team' && registration.teamMembers && registration.teamMembers.length > 0) {
-                registration.teamMembers.forEach((memberName, idx) => {
+                registration.teamMembers.forEach((member, idx) => {
+                    const memberName = typeof member === 'object' ? member.name : member
+                    const memberCode = (registration.memberPassCodes && registration.memberPassCodes[idx])
+                        || (typeof member === 'object' && member.passCode)
+                        || (registration.members && registration.members[idx]?.passCode)
+                        || registration.passCode
                     passItems.push({
-                        code: `${registration.passCode}-${idx + 1}`,
+                        code: memberCode,
                         fullName: memberName,
                         college: registration.college,
                         yearOfStudy: registration.yearOfStudy,
@@ -353,10 +358,28 @@ export default function AdminPage() {
         setRegistrations([])
     }
 
-    const filteredRegistrations = registrations.filter((registration) => [registration.passCode, registration.fullName, registration.email, registration.college, registration.eventName, registration.teamName || '', registration.yearOfStudy || ''].some((value) => value.toLowerCase().includes(search.trim().toLowerCase())))
+    const filteredRegistrations = registrations.filter((registration) => {
+        const memberCodes = registration.memberPassCodes || []
+        const memberNames = registration.teamMembers
+            ? registration.teamMembers.map((m) => (typeof m === 'object' ? `${m.name} ${m.passCode}` : m))
+            : []
+        return [
+            registration.passCode,
+            registration.passCodeRange || '',
+            ...memberCodes,
+            registration.fullName,
+            registration.email,
+            registration.college,
+            registration.eventName,
+            registration.teamName || '',
+            registration.teamMembersList || '',
+            ...memberNames,
+            registration.yearOfStudy || '',
+        ].some((value) => String(value).toLowerCase().includes(search.trim().toLowerCase()))
+    })
     const studentRows = filteredRegistrations.map((registration) => <div className="registration-table-row" key={registration.id}>
         <input className="student-checkbox" type="checkbox" checked={selectedIds.includes(registration.id)} onChange={() => toggleStudent(registration.id)} aria-label={`Select ${registration.fullName}`} />
-        <strong>{registration.passCode}</strong>
+        <strong>{registration.passCodeRange || registration.passCode}</strong>
         <span><b>{registration.fullName}</b><small>{registration.college} · {registration.yearOfStudy}</small>{registration.registrationType === 'team' && <small style={{ color: 'var(--lime)', marginTop: '2px' }}>Team: {registration.teamName} ({registration.teamSize} members: {registration.teamMembersList})</small>}</span>
         <span>{registration.eventName}</span>
         <div className="pass-actions"><button type="button" onClick={() => printPass(registration)}>Print</button><button type="button" onClick={() => downloadPass(registration)}>Download</button></div>

@@ -297,7 +297,7 @@ export default function AdminDashboard() {
             setFormKey((k) => k + 1)
             setStatus({
                 type: 'success',
-                message: `Registered successfully with Pass ZEN${String(result.registrationId).padStart(3, '0')} (${cleanLeaderName})!`,
+                message: `Registered successfully with Pass ${result.passCodeRange || result.passCode} (${cleanLeaderName})!`,
             })
             await loadRegistrations()
             setActiveTab('list')
@@ -393,9 +393,14 @@ export default function AdminDashboard() {
             const passItems = []
             for (const reg of selected) {
                 if (reg.registrationType === 'team' && reg.teamMembers && reg.teamMembers.length > 0) {
-                    reg.teamMembers.forEach((memberName, idx) => {
+                    reg.teamMembers.forEach((member, idx) => {
+                        const memberName = typeof member === 'object' ? member.name : member
+                        const memberCode = (reg.memberPassCodes && reg.memberPassCodes[idx])
+                            || (typeof member === 'object' && member.passCode)
+                            || (reg.members && reg.members[idx]?.passCode)
+                            || reg.passCode
                         passItems.push({
-                            code: `${reg.passCode}-${idx + 1}`,
+                            code: memberCode,
                             fullName: memberName,
                             college: reg.college,
                             yearOfStudy: reg.yearOfStudy,
@@ -479,8 +484,15 @@ export default function AdminDashboard() {
 
             if (!search) return true
             const query = search.toLowerCase()
+            const memberCodes = reg.memberPassCodes || []
+            const memberNamesList = reg.teamMembers
+                ? reg.teamMembers.map((m) => (typeof m === 'object' ? `${m.name} ${m.passCode}` : m))
+                : []
+
             return [
                 reg.passCode,
+                reg.passCodeRange || '',
+                ...memberCodes,
                 reg.fullName,
                 reg.email,
                 reg.phone,
@@ -489,6 +501,7 @@ export default function AdminDashboard() {
                 reg.eventName,
                 reg.teamName || '',
                 reg.teamMembersList || '',
+                ...memberNamesList,
                 reg.yearOfStudy || '',
             ].some((val) => String(val).toLowerCase().includes(query))
         })
@@ -1025,11 +1038,11 @@ export default function AdminDashboard() {
                                                         <button
                                                             type="button"
                                                             className="pass-code-pill"
-                                                            onClick={() => copyPassCode(reg.passCode)}
+                                                            onClick={() => copyPassCode(reg.passCodeRange || reg.passCode)}
                                                             title="Click to copy pass code"
                                                         >
-                                                            <span>{reg.passCode}</span>
-                                                            <small className="copy-badge">{copiedId === reg.passCode ? 'COPIED' : 'COPY'}</small>
+                                                            <span>{reg.passCodeRange || reg.passCode}</span>
+                                                            <small className="copy-badge">{copiedId === (reg.passCodeRange || reg.passCode) ? 'COPIED' : 'COPY'}</small>
                                                         </button>
                                                     </td>
                                                     <td className="participant-cell">
@@ -1044,15 +1057,23 @@ export default function AdminDashboard() {
 
                                                         {isTeamReg && reg.teamMembers && reg.teamMembers.length > 0 && (
                                                             <div className="team-roster-tags">
-                                                                {reg.teamMembers.map((member, mIdx) => (
-                                                                    <span
-                                                                        key={mIdx}
-                                                                        className={`member-roster-tag ${mIdx === 0 || member.toLowerCase().includes('(leader)') ? 'leader-tag' : ''}`}
-                                                                    >
-                                                                        {mIdx === 0 || member.toLowerCase().includes('(leader)') ? '[Leader] ' : ''}
-                                                                        {member}
-                                                                    </span>
-                                                                ))}
+                                                                {reg.teamMembers.map((member, mIdx) => {
+                                                                    const memberName = typeof member === 'object' ? member.name : member
+                                                                    const memberCode = (reg.memberPassCodes && reg.memberPassCodes[mIdx])
+                                                                        || (typeof member === 'object' && member.passCode)
+                                                                        || (reg.members && reg.members[mIdx]?.passCode)
+                                                                        || ''
+                                                                    return (
+                                                                        <span
+                                                                            key={mIdx}
+                                                                            className={`member-roster-tag ${mIdx === 0 || memberName.toLowerCase().includes('(leader)') ? 'leader-tag' : ''}`}
+                                                                        >
+                                                                            {mIdx === 0 || memberName.toLowerCase().includes('(leader)') ? '[Leader] ' : ''}
+                                                                            {memberName}
+                                                                            {memberCode && <span className="member-code-badge" style={{ marginLeft: '4px', opacity: 0.9, fontWeight: 700 }}>({memberCode})</span>}
+                                                                        </span>
+                                                                    )
+                                                                })}
                                                             </div>
                                                         )}
 

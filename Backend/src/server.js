@@ -48,7 +48,90 @@ app.use(express.json({ limit: '20kb' }))
 
 const requiredFields = ['fullName', 'email', 'phone', 'college', 'yearOfStudy']
 const csvEscape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
-const passCode = (id) => `ZEN${String(id).padStart(3, '0')}`
+const passCode = (typeOrId, maybeId) => {
+    let type = 'individual'
+    let num = typeOrId
+    if (typeof maybeId !== 'undefined') {
+        type = typeOrId === 'team' ? 'team' : 'individual'
+        num = maybeId
+    } else if (typeof typeOrId === 'string' && (typeOrId.toLowerCase() === 'team' || typeOrId.toLowerCase() === 'individual')) {
+        type = typeOrId.toLowerCase()
+        num = 1
+    }
+    const prefix = type === 'team' ? 'ZEN-T-' : 'ZEN-I-'
+    return `${prefix}${String(num).padStart(3, '0')}`
+}
+
+const allocatePassCodes = async (type, count, connection) => {
+    const counterType = type === 'team' ? 'team' : 'individual'
+    const rows = await connection.query('SELECT last_val FROM pass_counters WHERE counter_type = ? FOR UPDATE', [counterType])
+    let currentVal = Number(rows[0]?.last_val || 0)
+    const startVal = currentVal + 1
+    const endVal = currentVal + count
+    await connection.query('UPDATE pass_counters SET last_val = ? WHERE counter_type = ?', [endVal, counterType])
+
+    const codes = []
+    for (let i = startVal; i <= endVal; i++) {
+        codes.push(passCode(counterType, i))
+    }
+    return codes
+}
+
+const migratePassCodes = async () => {
+    const nonStandardRegs = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM registrations WHERE pass_code IS NULL OR (registration_type = 'individual' AND pass_code NOT LIKE 'ZEN-I-%') OR (registration_type = 'team' AND pass_code NOT LIKE 'ZEN-T-%')"
+    )
+    const nonStandardMembers = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM team_members WHERE pass_code IS NULL OR pass_code NOT LIKE 'ZEN-T-%'"
+    )
+    if (Number(nonStandardRegs[0]?.cnt || 0) === 0 && Number(nonStandardMembers[0]?.cnt || 0) === 0) {
+        return
+    }
+
+    const individualRegs = await pool.query(
+        "SELECT id FROM registrations WHERE registration_type = 'individual' ORDER BY id ASC"
+    )
+    let indCount = 0
+    for (const reg of individualRegs) {
+        indCount++
+        const code = passCode('individual', indCount)
+        await pool.query('UPDATE registrations SET pass_code = ? WHERE id = ?', [code, reg.id])
+    }
+
+    const teamRegs = await pool.query(
+        "SELECT id FROM registrations WHERE registration_type = 'team' ORDER BY id ASC"
+    )
+    let teamMemberCount = 0
+    for (const reg of teamRegs) {
+        const members = await pool.query(
+            'SELECT id, member_order FROM team_members WHERE registration_id = ? ORDER BY member_order ASC, id ASC',
+            [reg.id]
+        )
+        if (members.length > 0) {
+            let leaderCode = null
+            for (let i = 0; i < members.length; i++) {
+                teamMemberCount++
+                const code = passCode('team', teamMemberCount)
+                if (i === 0) leaderCode = code
+                await pool.query('UPDATE team_members SET pass_code = ? WHERE id = ?', [code, members[i].id])
+            }
+            await pool.query('UPDATE registrations SET pass_code = ? WHERE id = ?', [leaderCode, reg.id])
+        } else {
+            teamMemberCount++
+            const code = passCode('team', teamMemberCount)
+            await pool.query('UPDATE registrations SET pass_code = ? WHERE id = ?', [code, reg.id])
+        }
+    }
+
+    await pool.query(
+        "INSERT INTO pass_counters (counter_type, last_val) VALUES ('individual', ?) ON DUPLICATE KEY UPDATE last_val = GREATEST(last_val, ?)",
+        [indCount, indCount]
+    )
+    await pool.query(
+        "INSERT INTO pass_counters (counter_type, last_val) VALUES ('team', ?) ON DUPLICATE KEY UPDATE last_val = GREATEST(last_val, ?)",
+        [teamMemberCount, teamMemberCount]
+    )
+}
 
 const ensureSchema = async () => {
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS present TINYINT(1) NOT NULL DEFAULT 0')
@@ -59,6 +142,7 @@ const ensureSchema = async () => {
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS team_name VARCHAR(120) NULL DEFAULT NULL')
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS technical_event VARCHAR(120) NULL DEFAULT NULL')
     await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS non_technical_event VARCHAR(120) NULL DEFAULT NULL')
+    await pool.query('ALTER TABLE registrations ADD COLUMN IF NOT EXISTS pass_code VARCHAR(30) NULL DEFAULT NULL')
     await pool.query('ALTER TABLE registrations MODIFY COLUMN event_name VARCHAR(255) NOT NULL')
     await pool.query(`
         CREATE TABLE IF NOT EXISTS team_members (
@@ -66,12 +150,22 @@ const ensureSchema = async () => {
             registration_id INT UNSIGNED NOT NULL,
             member_name VARCHAR(120) NOT NULL,
             member_order TINYINT UNSIGNED NOT NULL DEFAULT 1,
+            pass_code VARCHAR(30) NULL DEFAULT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             INDEX idx_team_members_reg_id (registration_id),
             CONSTRAINT fk_team_members_registration FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE
         )
     `)
+    await pool.query('ALTER TABLE team_members ADD COLUMN IF NOT EXISTS pass_code VARCHAR(30) NULL DEFAULT NULL')
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS pass_counters (
+            counter_type VARCHAR(20) NOT NULL PRIMARY KEY,
+            last_val INT UNSIGNED NOT NULL DEFAULT 0
+        )
+    `)
+    await pool.query("INSERT IGNORE INTO pass_counters (counter_type, last_val) VALUES ('individual', 0), ('team', 0)")
+
     try {
         await pool.query(`
             UPDATE registrations 
@@ -85,6 +179,12 @@ const ensureSchema = async () => {
         `)
     } catch {
         // Schema normalization best effort
+    }
+
+    try {
+        await migratePassCodes()
+    } catch (error) {
+        console.error('Pass code migration failed:', error)
     }
 }
 
@@ -223,10 +323,17 @@ const saveRegistration = async (request, response) => {
         cleanedMembers = cleanedMembers.slice(0, normalizedTeamSize)
     }
 
+    const connection = await pool.getConnection()
     try {
-        const result = await pool.query(
-            `INSERT INTO registrations (full_name, email, phone, college, college_id, year_of_study, event_name, technical_event, non_technical_event, registration_type, team_name, team_size)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        await connection.beginTransaction()
+
+        const memberCount = isTeam ? normalizedTeamSize : 1
+        const allocatedCodes = await allocatePassCodes(normalizedType, memberCount, connection)
+        const primaryCode = allocatedCodes[0]
+
+        const result = await connection.query(
+            `INSERT INTO registrations (full_name, email, phone, college, college_id, year_of_study, event_name, technical_event, non_technical_event, registration_type, team_name, team_size, pass_code)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 finalFullName,
                 cleanEmail,
@@ -240,20 +347,40 @@ const saveRegistration = async (request, response) => {
                 normalizedType,
                 normalizedTeamName,
                 normalizedTeamSize,
+                primaryCode,
             ],
         )
 
         const registrationId = Number(result.insertId)
 
+        const membersList = []
         if (isTeam && cleanedMembers.length > 0) {
             for (let i = 0; i < cleanedMembers.length; i++) {
-                await pool.query(
-                    `INSERT INTO team_members (registration_id, member_name, member_order)
-                     VALUES (?, ?, ?)`,
-                    [registrationId, cleanedMembers[i], i + 1],
+                const memberCode = allocatedCodes[i]
+                await connection.query(
+                    `INSERT INTO team_members (registration_id, member_name, member_order, pass_code)
+                     VALUES (?, ?, ?, ?)`,
+                    [registrationId, cleanedMembers[i], i + 1, memberCode],
                 )
+                membersList.push({
+                    name: cleanedMembers[i],
+                    passCode: memberCode,
+                    memberOrder: i + 1,
+                })
             }
+        } else {
+            membersList.push({
+                name: finalFullName,
+                passCode: primaryCode,
+                memberOrder: 1,
+            })
         }
+
+        await connection.commit()
+
+        const passCodeRange = isTeam && allocatedCodes.length > 1
+            ? `${allocatedCodes[0]} – ${allocatedCodes[allocatedCodes.length - 1]}`
+            : primaryCode
 
         response.status(201).json({
             message: 'Registration completed.',
@@ -263,7 +390,11 @@ const saveRegistration = async (request, response) => {
             eventName: computedEventName,
             technicalEvent: cleanTech,
             nonTechnicalEvent: cleanNonTech,
-            passCode: passCode(registrationId),
+            passCode: primaryCode,
+            passCodeRange,
+            leaderPassCode: primaryCode,
+            memberPassCodes: allocatedCodes,
+            members: membersList,
             fullName: finalFullName,
             college: cleanCollege,
             collegeId: cleanCollegeId,
@@ -272,9 +403,12 @@ const saveRegistration = async (request, response) => {
             teamSize: normalizedTeamSize,
         })
     } catch (error) {
+        await connection.rollback()
         if (error.code === 'ER_DUP_ENTRY') return response.status(409).json({ message: 'This email is already registered for that event.' })
         console.error(error)
         response.status(500).json({ message: 'The registration could not be saved.' })
+    } finally {
+        connection.release()
     }
 }
 
@@ -289,17 +423,44 @@ app.get('/api/admin/registrations', requireAdmin, async (_request, response) => 
                     r.registration_type AS registrationType, r.team_name AS teamName,
                     r.team_size AS teamSize, r.present, r.present_at AS presentAt,
                     r.created_at AS createdAt,
-                    GROUP_CONCAT(tm.member_name ORDER BY tm.member_order SEPARATOR ', ') AS teamMembersList
+                    r.pass_code AS regPassCode,
+                    GROUP_CONCAT(CONCAT(tm.member_name, '::', COALESCE(tm.pass_code, '')) ORDER BY tm.member_order SEPARATOR '||') AS rawMembers
              FROM registrations r
              LEFT JOIN team_members tm ON r.id = tm.registration_id
              GROUP BY r.id
              ORDER BY r.id DESC`,
         )
-        response.json(rows.map((row) => ({
-            ...row,
-            passCode: passCode(row.id),
-            teamMembers: row.teamMembersList ? row.teamMembersList.split(', ') : [],
-        })))
+        response.json(rows.map((row) => {
+            const fallbackCode = row.regPassCode || passCode(row.registrationType, row.id)
+            let memberObjects = []
+            if (row.rawMembers) {
+                memberObjects = row.rawMembers.split('||').map((item, idx) => {
+                    const [name, code] = item.split('::')
+                    return {
+                        name: name || '',
+                        passCode: code || fallbackCode,
+                        memberOrder: idx + 1,
+                    }
+                })
+            }
+            const memberPassCodes = memberObjects.length > 0
+                ? memberObjects.map((m) => m.passCode)
+                : [fallbackCode]
+
+            const passCodeRange = memberPassCodes.length > 1
+                ? `${memberPassCodes[0]} – ${memberPassCodes[memberPassCodes.length - 1]}`
+                : fallbackCode
+
+            return {
+                ...row,
+                passCode: fallbackCode,
+                passCodeRange,
+                memberPassCodes,
+                members: memberObjects,
+                teamMembers: memberObjects.length > 0 ? memberObjects.map((m) => m.name) : [],
+                teamMembersList: memberObjects.length > 0 ? memberObjects.map((m) => `${m.name} (${m.passCode})`).join(', ') : '',
+            }
+        }))
     } catch (error) {
         console.error(error)
         response.status(500).json({ message: 'The registrations could not be loaded.' })
@@ -356,7 +517,7 @@ app.post('/api/admin/registrations/bulk-present', requireAdmin, async (request, 
 
 app.get('/api/barcode/:code', async (request, response) => {
     const code = String(request.params.code || '').trim().toUpperCase()
-    if (!/^ZEN\d{3,}(?:-[0-9A-Za-z]+)?$/.test(code)) {
+    if (!/^ZEN(?:-[IT]-\d{3,}|\d{3,}(?:-[0-9A-Za-z]+)?)$/i.test(code)) {
         return response.status(400).json({ message: 'Invalid pass code format.' })
     }
     try {
@@ -370,9 +531,12 @@ app.get('/api/barcode/:code', async (request, response) => {
 
 app.get('/api/admin/registrations/:id/barcode', requireAdmin, async (request, response) => {
     const queryCode = request.query.code ? String(request.query.code).trim().toUpperCase() : null
-    const baseCode = passCode(Number(request.params.id))
-    const code = queryCode && queryCode.startsWith(baseCode) ? queryCode : baseCode
-    if (!/^ZEN\d{3,}(?:-[0-9A-Za-z]+)?$/.test(code)) return response.status(400).json({ message: 'Invalid registration ID or code.' })
+    let code = queryCode
+    if (!code) {
+        const rows = await pool.query('SELECT pass_code, registration_type FROM registrations WHERE id = ?', [Number(request.params.id)])
+        code = rows[0]?.pass_code || passCode(rows[0]?.registration_type, Number(request.params.id))
+    }
+    if (!/^ZEN(?:-[IT]-\d{3,}|\d{3,}(?:-[0-9A-Za-z]+)?)$/i.test(code)) return response.status(400).json({ message: 'Invalid registration ID or code.' })
     try {
         const png = await bwipjs.toBuffer({ bcid: 'code128', text: code, scale: 3, height: 12, includetext: true, textxalign: 'center' })
         response.type('image/png').send(png)
@@ -389,7 +553,10 @@ app.get('/api/registrations/export', requireAdmin, async (_request, response) =>
                     r.event_name, r.technical_event, r.non_technical_event,
                     r.registration_type, r.team_name, r.team_size,
                     r.present, r.present_at, r.created_at,
-                    GROUP_CONCAT(tm.member_name ORDER BY tm.member_order SEPARATOR '; ') AS team_members
+                    r.pass_code AS reg_pass_code,
+                    GROUP_CONCAT(CONCAT(tm.member_name, ' (', COALESCE(tm.pass_code, r.pass_code, ''), ')') ORDER BY tm.member_order SEPARATOR '; ') AS team_members_with_codes,
+                    MIN(tm.pass_code) AS min_pass_code,
+                    MAX(tm.pass_code) AS max_pass_code
              FROM registrations r
              LEFT JOIN team_members tm ON r.id = tm.registration_id
              GROUP BY r.id
@@ -417,26 +584,34 @@ app.get('/api/registrations/export', requireAdmin, async (_request, response) =>
         ]
         const csv = [
             header,
-            ...rows.map((row) => [
-                row.id,
-                passCode(row.id),
-                row.full_name,
-                row.email,
-                row.phone,
-                row.college,
-                row.college_id ?? '',
-                row.year_of_study,
-                row.event_name,
-                row.technical_event ?? '',
-                row.non_technical_event ?? '',
-                row.registration_type,
-                row.team_name ?? '',
-                row.team_size,
-                row.team_members ?? row.full_name,
-                row.present ? 'YES' : 'NO',
-                row.present_at instanceof Date ? row.present_at.toISOString() : row.present_at,
-                row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-            ]),
+            ...rows.map((row) => {
+                const isTeam = row.registration_type === 'team'
+                const primaryCode = row.reg_pass_code || passCode(row.registration_type, row.id)
+                let passDisplay = primaryCode
+                if (isTeam && row.min_pass_code && row.max_pass_code && row.min_pass_code !== row.max_pass_code) {
+                    passDisplay = `${row.min_pass_code} – ${row.max_pass_code}`
+                }
+                return [
+                    row.id,
+                    passDisplay,
+                    row.full_name,
+                    row.email,
+                    row.phone,
+                    row.college,
+                    row.college_id ?? '',
+                    row.year_of_study,
+                    row.event_name,
+                    row.technical_event ?? '',
+                    row.non_technical_event ?? '',
+                    row.registration_type,
+                    row.team_name ?? '',
+                    row.team_size,
+                    row.team_members_with_codes ?? row.full_name,
+                    row.present ? 'YES' : 'NO',
+                    row.present_at instanceof Date ? row.present_at.toISOString() : row.present_at,
+                    row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+                ]
+            }),
         ].map((row) => row.map(csvEscape).join(',')).join('\r\n')
 
         response.attachment('zen-it-trix-registrations.csv')
