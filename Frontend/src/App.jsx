@@ -4,6 +4,7 @@ import { nonTechnicalEvents, schedule, technicalEvents } from './data'
 import ContactSection from './components/ContactSection'
 import AnimatedOverlay from './components/AnimatedOverlay'
 import AdminDashboard from './components/AdminDashboard'
+import FoodAdminPage from './components/FoodAdminPage'
 import EventsSection from './components/EventsSection'
 import Footer from './components/Footer'
 import Hero from './components/Hero'
@@ -30,6 +31,17 @@ function App() {
         window.addEventListener('hashchange', handleHashChange)
         return () => window.removeEventListener('hashchange', handleHashChange)
     }, [])
+
+    if (hash === '#food-admin' || hash === '#food') {
+        return (
+            <main className={`theme-${theme}`}>
+                <AnimatedOverlay />
+                <SiteNav isAdmin={true} isFoodAdmin={true} />
+                <FoodAdminPage />
+                <Footer theme={theme} onThemeChange={setTheme} />
+            </main>
+        )
+    }
 
     if (hash === '#admin') {
         return (

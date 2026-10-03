@@ -16,6 +16,8 @@ const port = Number(process.env.PORT || 4000)
 const allowedOriginEnv = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
 const adminUsername = process.env.ADMIN_USERNAME || 'admin'
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin@zen-ti-trix-2'
+const foodUsername = process.env.FOOD_ADMIN_USERNAME || 'foodadmin'
+const foodPassword = process.env.FOOD_ADMIN_PASSWORD || 'food@zen-ti-trix-2'
 const adminSessions = new Map()
 
 const pool = mariadb.createPool({
@@ -166,6 +168,27 @@ const ensureSchema = async () => {
     `)
     await pool.query("INSERT IGNORE INTO pass_counters (counter_type, last_val) VALUES ('individual', 0), ('team', 0)")
 
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS food_records (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            pass_code VARCHAR(30) NOT NULL,
+            participant_name VARCHAR(120) NOT NULL,
+            registration_id INT UNSIGNED NOT NULL,
+            member_id INT UNSIGNED NULL DEFAULT NULL,
+            college VARCHAR(180) NULL DEFAULT NULL,
+            phone VARCHAR(30) NULL DEFAULT NULL,
+            food_type VARCHAR(60) NOT NULL DEFAULT 'Standard Meal',
+            status VARCHAR(30) NOT NULL DEFAULT 'bought',
+            bought_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            notes VARCHAR(255) NULL DEFAULT NULL,
+            served_by VARCHAR(60) NOT NULL DEFAULT 'Food Admin',
+            PRIMARY KEY (id),
+            INDEX idx_food_pass_code (pass_code),
+            INDEX idx_food_reg_id (registration_id),
+            INDEX idx_food_bought_at (bought_at)
+        )
+    `)
+
     try {
         await pool.query(`
             UPDATE registrations 
@@ -190,11 +213,14 @@ const ensureSchema = async () => {
 
 const requireAdmin = (request, response, next) => {
     const token = request.headers.authorization?.replace('Bearer ', '')
-    const expiresAt = adminSessions.get(token)
+    const session = adminSessions.get(token)
+    const expiresAt = typeof session === 'object' ? session.expiresAt : session
     if (!token || !expiresAt || expiresAt < Date.now()) {
         adminSessions.delete(token)
         return response.status(401).json({ message: 'Admin login required.' })
     }
+    request.adminUser = typeof session === 'object' ? session.username : 'admin'
+    request.adminRole = typeof session === 'object' ? session.role : 'admin'
     next()
 }
 
@@ -215,8 +241,22 @@ app.post('/api/admin/login', (request, response) => {
     if (username !== adminUsername || password !== adminPassword) return response.status(401).json({ message: 'Invalid admin credentials.' })
     const token = crypto.randomBytes(32).toString('hex')
     const sessionMinutes = Number(process.env.ADMIN_SESSION_MINUTES || 240)
-    adminSessions.set(token, Date.now() + sessionMinutes * 60 * 1000)
-    response.json({ token, expiresInMinutes: sessionMinutes })
+    adminSessions.set(token, { expiresAt: Date.now() + sessionMinutes * 60 * 1000, role: 'admin', username })
+    response.json({ token, expiresInMinutes: sessionMinutes, role: 'admin', username })
+})
+
+app.post('/api/food/login', (request, response) => {
+    const { username, password } = request.body
+    const isFoodAdmin = (username === foodUsername && password === foodPassword)
+    const isMainAdmin = (username === adminUsername && password === adminPassword)
+    if (!isFoodAdmin && !isMainAdmin) {
+        return response.status(401).json({ message: 'Invalid food admin credentials.' })
+    }
+    const token = crypto.randomBytes(32).toString('hex')
+    const sessionMinutes = Number(process.env.ADMIN_SESSION_MINUTES || 240)
+    const role = isMainAdmin ? 'admin' : 'food_admin'
+    adminSessions.set(token, { expiresAt: Date.now() + sessionMinutes * 60 * 1000, role, username })
+    response.json({ token, expiresInMinutes: sessionMinutes, role, username })
 })
 
 app.get('/api/health', async (_request, response) => {
@@ -619,6 +659,379 @@ app.get('/api/registrations/export', requireAdmin, async (_request, response) =>
     } catch (error) {
         console.error(error)
         response.status(500).json({ message: 'The registrations could not be exported.' })
+    }
+})
+
+const formatFoodRecord = (record) => {
+    if (!record) return null
+    return {
+        id: record.id,
+        passCode: record.pass_code || record.passCode,
+        participantName: record.participant_name || record.participantName,
+        registrationId: record.registration_id || record.registrationId,
+        memberId: record.member_id || record.memberId || null,
+        college: record.college || '',
+        phone: record.phone || '',
+        foodType: record.food_type || record.foodType || 'Standard Meal',
+        status: record.status || 'bought',
+        boughtAt: record.bought_at instanceof Date ? record.bought_at.toISOString() : (record.boughtAt || record.bought_at),
+        notes: record.notes || '',
+        servedBy: record.served_by || record.servedBy || 'Food Admin',
+        registrationType: record.registration_type || record.registrationType || 'individual',
+        teamName: record.team_name || record.teamName || '',
+        eventName: record.event_name || record.eventName || '',
+    }
+}
+
+const findParticipantByPassCode = async (rawCode) => {
+    if (!rawCode) return null
+    const cleanCode = String(rawCode).trim()
+    const upperCode = cleanCode.toUpperCase()
+
+    // 1. Check team_members
+    const memberRows = await pool.query(
+        `SELECT tm.id AS memberId, tm.member_name AS participantName, tm.pass_code AS passCode,
+                tm.member_order AS memberOrder, r.id AS registrationId, r.full_name AS leaderName,
+                r.email, r.phone, r.college, r.college_id AS collegeId, r.year_of_study AS yearOfStudy,
+                r.event_name AS eventName, r.registration_type AS registrationType, r.team_name AS teamName,
+                r.team_size AS teamSize, r.present, r.present_at AS presentAt
+         FROM team_members tm
+         JOIN registrations r ON tm.registration_id = r.id
+         WHERE tm.pass_code = ? OR tm.pass_code = ?`,
+        [upperCode, cleanCode]
+    )
+    if (memberRows.length > 0) {
+        return memberRows[0]
+    }
+
+    // 2. Check registrations
+    const regRows = await pool.query(
+        `SELECT NULL AS memberId, r.full_name AS participantName, r.pass_code AS passCode,
+                1 AS memberOrder, r.id AS registrationId, r.full_name AS leaderName,
+                r.email, r.phone, r.college, r.college_id AS collegeId, r.year_of_study AS yearOfStudy,
+                r.event_name AS eventName, r.registration_type AS registrationType, r.team_name AS teamName,
+                r.team_size AS teamSize, r.present, r.present_at AS presentAt
+         FROM registrations r
+         WHERE r.pass_code = ? OR r.pass_code = ?`,
+        [upperCode, cleanCode]
+    )
+    if (regRows.length > 0) {
+        return regRows[0]
+    }
+
+    // 3. Fallback: Numeric ID match in registrations
+    if (/^\d+$/.test(cleanCode)) {
+        const idRows = await pool.query(
+            `SELECT NULL AS memberId, r.full_name AS participantName, r.pass_code AS passCode,
+                    1 AS memberOrder, r.id AS registrationId, r.full_name AS leaderName,
+                    r.email, r.phone, r.college, r.college_id AS collegeId, r.year_of_study AS yearOfStudy,
+                    r.event_name AS eventName, r.registration_type AS registrationType, r.team_name AS teamName,
+                    r.team_size AS teamSize, r.present, r.present_at AS presentAt
+             FROM registrations r
+             WHERE r.id = ?`,
+            [Number(cleanCode)]
+        )
+        if (idRows.length > 0) return idRows[0]
+    }
+
+    // 4. Fallback: Fuzzy normalization for variations like ZENI001, ZEN-I-1, ZEN_T_002
+    const match = upperCode.match(/^(?:ZEN[-_]?)?([IT])[-_]?(\d+)$/i)
+    if (match) {
+        const type = match[1].toUpperCase() === 'T' ? 'ZEN-T-' : 'ZEN-I-'
+        const padded = `${type}${String(match[2]).padStart(3, '0')}`
+        if (padded !== upperCode) {
+            return findParticipantByPassCode(padded)
+        }
+    }
+
+    return null
+}
+
+// Food Admin APIs
+app.get('/api/food/verify', requireAdmin, (request, response) => {
+    response.json({ valid: true, user: request.adminUser, role: request.adminRole })
+})
+
+app.get('/api/food/lookup/:code', requireAdmin, async (request, response) => {
+    const rawCode = String(request.params.code || '').trim()
+    if (!rawCode) return response.status(400).json({ message: 'Pass code is required.' })
+
+    try {
+        const participant = await findParticipantByPassCode(rawCode)
+        if (!participant) {
+            const orphanPurchases = await pool.query(
+                'SELECT * FROM food_records WHERE pass_code = ? ORDER BY bought_at DESC',
+                [rawCode.toUpperCase()]
+            )
+            if (orphanPurchases.length > 0) {
+                return response.json({
+                    found: true,
+                    participant: {
+                        participantName: orphanPurchases[0].participant_name,
+                        passCode: orphanPurchases[0].pass_code,
+                        college: orphanPurchases[0].college,
+                        phone: orphanPurchases[0].phone,
+                        registrationType: 'individual',
+                        eventName: 'Symposium',
+                    },
+                    alreadyBought: true,
+                    purchaseCount: orphanPurchases.length,
+                    purchases: orphanPurchases.map(formatFoodRecord),
+                    firstBoughtAt: orphanPurchases[orphanPurchases.length - 1].bought_at,
+                    lastBoughtAt: orphanPurchases[0].bought_at,
+                })
+            }
+            return response.status(404).json({ found: false, message: `Pass code "${rawCode}" not found.` })
+        }
+
+        const purchases = await pool.query(
+            `SELECT id, pass_code AS passCode, participant_name AS participantName,
+                    registration_id AS registrationId, member_id AS memberId,
+                    college, phone, food_type AS foodType, status,
+                    bought_at AS boughtAt, notes, served_by AS servedBy
+             FROM food_records
+             WHERE pass_code = ? OR (registration_id = ? AND (member_id = ? OR (member_id IS NULL AND ? IS NULL)))
+             ORDER BY bought_at DESC`,
+            [participant.passCode, participant.registrationId, participant.memberId, participant.memberId]
+        )
+
+        response.json({
+            found: true,
+            participant,
+            alreadyBought: purchases.length > 0,
+            purchaseCount: purchases.length,
+            purchases: purchases.map(formatFoodRecord),
+            firstBoughtAt: purchases.length > 0 ? purchases[purchases.length - 1].boughtAt : null,
+            lastBoughtAt: purchases.length > 0 ? purchases[0].boughtAt : null,
+        })
+    } catch (error) {
+        console.error('Food lookup error:', error)
+        response.status(500).json({ message: 'Failed to look up pass code.' })
+    }
+})
+
+app.post('/api/food/purchase', requireAdmin, async (request, response) => {
+    const { passCode, foodType = 'Standard Meal', notes = '', force = false } = request.body
+    if (!passCode) return response.status(400).json({ message: 'Pass code is required.' })
+
+    try {
+        const participant = await findParticipantByPassCode(passCode)
+        if (!participant) {
+            return response.status(404).json({ message: `Pass code "${passCode}" not found in registrations.` })
+        }
+
+        const existing = await pool.query(
+            `SELECT id, pass_code AS passCode, participant_name AS participantName,
+                    food_type AS foodType, bought_at AS boughtAt, served_by AS servedBy
+             FROM food_records
+             WHERE pass_code = ? OR (registration_id = ? AND (member_id = ? OR (member_id IS NULL AND ? IS NULL)))
+             ORDER BY bought_at DESC`,
+            [participant.passCode, participant.registrationId, participant.memberId, participant.memberId]
+        )
+
+        if (existing.length > 0 && !force) {
+            return response.status(409).json({
+                message: `${participant.participantName} has ALREADY bought food.`,
+                alreadyBought: true,
+                purchases: existing.map(formatFoodRecord),
+                participant,
+                lastBoughtAt: existing[0].boughtAt,
+            })
+        }
+
+        const servedBy = request.adminUser || 'Food Admin'
+        const insertResult = await pool.query(
+            `INSERT INTO food_records (pass_code, participant_name, registration_id, member_id, college, phone, food_type, status, notes, served_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'bought', ?, ?)`,
+            [
+                participant.passCode,
+                participant.participantName,
+                participant.registrationId,
+                participant.memberId,
+                participant.college,
+                participant.phone,
+                foodType,
+                notes || null,
+                servedBy,
+            ]
+        )
+
+        if (!participant.present) {
+            await pool.query(
+                `UPDATE registrations SET present = 1, present_at = COALESCE(present_at, CURRENT_TIMESTAMP) WHERE id = ?`,
+                [participant.registrationId]
+            )
+        }
+
+        const newRecord = {
+            id: Number(insertResult.insertId),
+            passCode: participant.passCode,
+            participantName: participant.participantName,
+            registrationId: participant.registrationId,
+            memberId: participant.memberId,
+            college: participant.college,
+            phone: participant.phone,
+            foodType,
+            status: 'bought',
+            boughtAt: new Date().toISOString(),
+            notes: notes || null,
+            servedBy,
+            registrationType: participant.registrationType,
+            teamName: participant.teamName,
+            eventName: participant.eventName,
+        }
+
+        response.status(201).json({
+            message: `Food purchase recorded for ${participant.participantName}.`,
+            purchase: formatFoodRecord(newRecord),
+            participant,
+        })
+    } catch (error) {
+        console.error('Food purchase error:', error)
+        response.status(500).json({ message: 'Could not record food purchase.' })
+    }
+})
+
+app.get('/api/food/records', requireAdmin, async (request, response) => {
+    try {
+        const search = request.query.search ? String(request.query.search).trim() : ''
+        let query = `
+            SELECT f.id, f.pass_code AS passCode, f.participant_name AS participantName,
+                   f.registration_id AS registrationId, f.member_id AS memberId,
+                   f.college, f.phone, f.food_type AS foodType, f.status,
+                   f.bought_at AS boughtAt, f.notes, f.served_by AS servedBy,
+                   r.registration_type AS registrationType, r.team_name AS teamName,
+                   r.event_name AS eventName
+            FROM food_records f
+            LEFT JOIN registrations r ON f.registration_id = r.id
+        `
+        const params = []
+        if (search) {
+            query += ` WHERE f.pass_code LIKE ? OR f.participant_name LIKE ? OR f.college LIKE ? OR f.phone LIKE ?`
+            const wild = `%${search}%`
+            params.push(wild, wild, wild, wild)
+        }
+        query += ` ORDER BY f.bought_at DESC LIMIT 500`
+
+        const rows = await pool.query(query, params)
+        response.json(rows.map(formatFoodRecord))
+    } catch (error) {
+        console.error('Food records error:', error)
+        response.status(500).json({ message: 'Could not load food records.' })
+    }
+})
+
+app.get('/api/food/stats', requireAdmin, async (_request, response) => {
+    try {
+        const [totalBoughtRow] = await pool.query('SELECT COUNT(*) AS totalPurchases, COUNT(DISTINCT pass_code) AS uniqueParticipants FROM food_records')
+        const [recentHourRow] = await pool.query('SELECT COUNT(*) AS countLastHour FROM food_records WHERE bought_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)')
+        
+        const [totalIndividual] = await pool.query("SELECT COUNT(*) AS cnt FROM registrations WHERE registration_type = 'individual'")
+        const [totalTeamMembers] = await pool.query('SELECT COUNT(*) AS cnt FROM team_members')
+        const [teamsWithoutMembers] = await pool.query("SELECT COUNT(*) AS cnt FROM registrations r LEFT JOIN team_members tm ON r.id = tm.registration_id WHERE r.registration_type = 'team' AND tm.id IS NULL")
+        const totalEligible = Number(totalIndividual.cnt || 0) + Number(totalTeamMembers.cnt || 0) + Number(teamsWithoutMembers.cnt || 0)
+
+        const totalServed = Number(totalBoughtRow?.uniqueParticipants || 0)
+        const pending = Math.max(0, totalEligible - totalServed)
+
+        response.json({
+            totalEligible,
+            totalPurchases: Number(totalBoughtRow?.totalPurchases || 0),
+            uniqueParticipantsServed: totalServed,
+            pending,
+            servedInLastHour: Number(recentHourRow?.countLastHour || 0),
+        })
+    } catch (error) {
+        console.error('Food stats error:', error)
+        response.status(500).json({ message: 'Could not load food stats.' })
+    }
+})
+
+app.delete('/api/food/records/:id', requireAdmin, async (request, response) => {
+    const id = Number(request.params.id)
+    try {
+        const result = await pool.query('DELETE FROM food_records WHERE id = ?', [id])
+        if (!result.affectedRows) return response.status(404).json({ message: 'Food record not found.' })
+        response.json({ message: 'Food record removed.' })
+    } catch (error) {
+        console.error('Delete food record error:', error)
+        response.status(500).json({ message: 'Could not delete food record.' })
+    }
+})
+
+app.get('/api/food/export', requireAdmin, async (_request, response) => {
+    try {
+        const rows = await pool.query(`
+            SELECT f.id, f.pass_code, f.participant_name, f.college, f.phone,
+                   f.food_type, f.bought_at, f.served_by, f.notes,
+                   r.registration_type, r.team_name, r.event_name
+            FROM food_records f
+            LEFT JOIN registrations r ON f.registration_id = r.id
+            ORDER BY f.bought_at DESC
+        `)
+        const header = ['Record ID', 'Pass Code', 'Participant Name', 'College', 'Phone', 'Registration Type', 'Team Name', 'Event', 'Food Type', 'Bought At', 'Served By', 'Notes']
+        const csv = [
+            header,
+            ...rows.map((row) => [
+                row.id,
+                row.pass_code,
+                row.participant_name,
+                row.college ?? '',
+                row.phone ?? '',
+                row.registration_type ?? '',
+                row.team_name ?? '',
+                row.event_name ?? '',
+                row.food_type,
+                row.bought_at instanceof Date ? row.bought_at.toISOString() : row.bought_at,
+                row.served_by ?? '',
+                row.notes ?? '',
+            ]),
+        ].map((row) => row.map(csvEscape).join(',')).join('\r\n')
+
+        response.attachment('zen-it-trix-food-log.csv')
+        response.type('text/csv').send(`\ufeff${csv}`)
+    } catch (error) {
+        console.error('Export food log error:', error)
+        response.status(500).json({ message: 'Could not export food log.' })
+    }
+})
+
+app.get('/api/food/search-participants', requireAdmin, async (request, response) => {
+    const q = String(request.query.q || '').trim()
+    if (!q || q.length < 2) return response.json([])
+    try {
+        const wild = `%${q}%`
+        const memberRows = await pool.query(
+            `SELECT tm.id AS memberId, tm.member_name AS participantName, tm.pass_code AS passCode,
+                    tm.member_order AS memberOrder, r.id AS registrationId, r.full_name AS leaderName,
+                    r.email, r.phone, r.college, r.event_name AS eventName, r.registration_type AS registrationType,
+                    r.team_name AS teamName
+             FROM team_members tm
+             JOIN registrations r ON tm.registration_id = r.id
+             WHERE tm.member_name LIKE ? OR tm.pass_code LIKE ? OR r.college LIKE ? OR r.phone LIKE ?
+             LIMIT 15`,
+            [wild, wild, wild, wild]
+        )
+        const regRows = await pool.query(
+            `SELECT NULL AS memberId, r.full_name AS participantName, r.pass_code AS passCode,
+                    1 AS memberOrder, r.id AS registrationId, r.full_name AS leaderName,
+                    r.email, r.phone, r.college, r.event_name AS eventName, r.registration_type AS registrationType,
+                    r.team_name AS teamName
+             FROM registrations r
+             WHERE r.full_name LIKE ? OR r.pass_code LIKE ? OR r.college LIKE ? OR r.phone LIKE ?
+             LIMIT 15`,
+            [wild, wild, wild, wild]
+        )
+        const map = new Map()
+        for (const item of [...memberRows, ...regRows]) {
+            if (item.passCode && !map.has(item.passCode)) {
+                map.set(item.passCode, item)
+            }
+        }
+        response.json(Array.from(map.values()))
+    } catch (error) {
+        console.error('Participant search error:', error)
+        response.status(500).json({ message: 'Search failed.' })
     }
 })
 

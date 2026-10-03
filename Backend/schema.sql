@@ -43,3 +43,23 @@ CREATE TABLE IF NOT EXISTS pass_counters (
 );
 
 INSERT IGNORE INTO pass_counters (counter_type, last_val) VALUES ('individual', 0), ('team', 0);
+
+CREATE TABLE IF NOT EXISTS food_records (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    pass_code VARCHAR(30) NOT NULL,
+    participant_name VARCHAR(120) NOT NULL,
+    registration_id INT UNSIGNED NOT NULL,
+    member_id INT UNSIGNED NULL DEFAULT NULL,
+    college VARCHAR(180) NULL DEFAULT NULL,
+    phone VARCHAR(30) NULL DEFAULT NULL,
+    food_type VARCHAR(60) NOT NULL DEFAULT 'Standard Meal',
+    status VARCHAR(30) NOT NULL DEFAULT 'bought',
+    bought_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notes VARCHAR(255) NULL DEFAULT NULL,
+    served_by VARCHAR(60) NOT NULL DEFAULT 'Food Admin',
+    PRIMARY KEY (id),
+    INDEX idx_food_pass_code (pass_code),
+    INDEX idx_food_reg_id (registration_id),
+    INDEX idx_food_bought_at (bought_at),
+    CONSTRAINT fk_food_registration FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE
+);

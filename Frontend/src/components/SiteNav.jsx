@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Brand from './Brand'
 
-export default function SiteNav({ isAdmin = false }) {
+export default function SiteNav({ isAdmin = false, isFoodAdmin = false }) {
     const [menuOpen, setMenuOpen] = useState(false)
     const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -48,6 +48,15 @@ export default function SiteNav({ isAdmin = false }) {
                         Home
                     </a>
                 )}
+                {isFoodAdmin ? (
+                    <a href="#admin" onClick={closeMenu}>
+                        Reg Admin
+                    </a>
+                ) : (
+                    <a href="#food-admin" onClick={closeMenu}>
+                        Food Counter
+                    </a>
+                )}
                 <a href="#events" onClick={closeMenu}>
                     Events
                 </a>
@@ -59,8 +68,8 @@ export default function SiteNav({ isAdmin = false }) {
                 </a>
             </div>
             {isAdmin ? (
-                <a className="nav-cta" href="#">
-                    Main site <span>↖</span>
+                <a className="nav-cta" href={isFoodAdmin ? '#admin' : '#food-admin'}>
+                    {isFoodAdmin ? 'Reg Admin' : 'Food Counter'} <span>↗</span>
                 </a>
             ) : (
                 <a className="nav-cta" href="#events">

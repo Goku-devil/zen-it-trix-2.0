@@ -23,6 +23,13 @@ The API listens on `http://localhost:4000` by default.
 - `POST /api/admin/registrations` adds an on-spot registration.
 - `POST /api/admin/registrations/:id/present` marks a student present when their pass is printed.
 - `GET /api/admin/registrations/:id/barcode` generates the student's pass barcode.
+- `POST /api/food/login` signs a food/catering admin in.
+- `GET /api/food/lookup/:code` scans/looks up a pass code and checks if food was already bought and when.
+- `POST /api/food/purchase` records a food purchase/meal distribution.
+- `GET /api/food/records` lists food distribution history.
+- `GET /api/food/stats` returns live meal counters and statistics.
+- `GET /api/food/export` exports all food distribution records to CSV.
+- `GET /api/food/search-participants` searches participants by name or phone for manual lookup.
 
 Registration fields are `fullName`, `email`, `phone`, `college`, `eventName`, and `teamSize`. The same email cannot register twice for one event.
 
@@ -30,4 +37,4 @@ Set `VITE_API_URL` in the frontend environment when the API is not running at `h
 
 Use the admin page's `Generate report` button to download a CSV containing registration and attendance status. Printing a single pass or four passes marks the corresponding students present. This endpoint exposes attendee data, so protect it with authentication before deploying publicly.
 
-Open the frontend at `http://localhost:5173/#admin` for the admin page. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env`; the development defaults are `admin` and `change_this_password`.
+Open the frontend at `http://localhost:5173/#admin` for the admin registration page, or `http://localhost:5173/#food-admin` for the food catering desk scanner. Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `FOOD_ADMIN_USERNAME`, and `FOOD_ADMIN_PASSWORD` in `.env`.

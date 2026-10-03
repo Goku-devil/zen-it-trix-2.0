@@ -603,6 +603,15 @@ export default function AdminDashboard() {
                             </>
                         )}
                     </button>
+                    <a
+                        href="#food-admin"
+                        className="hub-btn hub-btn-primary"
+                        style={{ textDecoration: 'none' }}
+                        title="Open Food & Catering Barcode Scanner"
+                    >
+                        <span>🍱</span>
+                        <span>Food Counter</span>
+                    </a>
                     <button
                         type="button"
                         className="hub-btn hub-btn-ghost"
