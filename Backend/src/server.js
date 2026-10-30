@@ -124,7 +124,7 @@ const migratePassCodes = async () => {
             await pool.query('UPDATE registrations SET pass_code = ? WHERE id = ?', [code, reg.id])
         }
     }
-
+    
     await pool.query(
         "INSERT INTO pass_counters (counter_type, last_val) VALUES ('individual', ?) ON DUPLICATE KEY UPDATE last_val = GREATEST(last_val, ?)",
         [indCount, indCount]
